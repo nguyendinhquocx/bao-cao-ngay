@@ -2,7 +2,7 @@
  * FINAL VERSION: Gửi email báo cáo tổng hợp ngày 
  * 
  * FIXED:
- * ✅ Weekly stars calculation - Tính đúng từ thứ 2 tuần hiện tại đến hôm nay
+ * ✅ Weekly stars calculation - Tính đúng từ thứ 2 tuần hiện tại đến hôm nay. 
  * ✅ Remove fraction display - Bỏ hiển thị 1/2, 2/3... 
  * ✅ Accurate star colors - Màu sao chính xác theo performance thực tế
  * 
