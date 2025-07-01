@@ -1,22 +1,19 @@
 /**
- * FINAL VERSION: Gửi email báo cáo tổng hợp ngày 
+ * Gửi email báo cáo tổng hợp ngày với tuần thống kê đặc biệt cho Chủ nhật.
+ * Thứ 2-7: Giao diện đơn giản như hiện tại
+ * Chủ nhật: Weekly Performance Dashboard đơn giản hóa
  * 
- * FIXED:
- * ✅ Weekly stars calculation - Tính đúng từ thứ 2 tuần hiện tại đến hôm nay
- * ✅ Remove fraction display - Bỏ hiển thị 1/2, 2/3... 
- * ✅ Accurate star colors - Màu sao chính xác theo performance thực tế
- * 
- * @version 2.1 Final
- * @author Nguyen Dinh Quoc  
- * @updated 2025-07-01
+ * FIXED: Mobile responsive cho Performance Heatmap
+ * FIXED: Simplified text cho Individual Dashboard
+ * FIXED: Tuân thủ design system đen/trắng tối giản
  */
 function sendDailyReportSummary() {
   const CONFIG = {
     sheetName: 'check bc',
-    
-    // Uncomment khi deploy production
-    emailTo: 'luan.tran@hoanmy.com, khanh.tran@hoanmy.com, hong.le@hoanmy.com, quynh.bui@hoanmy.com, thuy.pham@hoanmy.com, anh.ngo@hoanmy.com, truc.nguyen3@hoanmy.com, trang.nguyen9@hoanmy.com',
-    // emailTo: 'quoc.nguyen3@hoanmy.com',
+
+    // emailTo: 'luan.tran@hoanmy.com, khanh.tran@hoanmy.com, hong.le@hoanmy.com, quynh.bui@hoanmy.com, thuy.pham@hoanmy.com, anh.ngo@hoanmy.com, truc.nguyen3@hoanmy.com, trang.nguyen9@hoanmy.com, tram.mai@hoanmy.com, vuong.duong@hoanmy.com, phi.tran@hoanmy.com, quoc.nguyen3@hoanmy.com',
+
+    emailTo: 'quoc.nguyen3@hoanmy.com',
 
     dateHeaderRanges: ['e3:n3', 'e17:n17', 'e30:o30'],
     dataRanges: ['B4:n12', 'B18:n26', 'B31:o39'],
@@ -34,10 +31,7 @@ function sendDailyReportSummary() {
     pendingIconPerfect: 'https://cdn-icons-png.flaticon.com/128/17694/17694222.png',
     
     // Achievement icons
-    celebrationIcon: 'https://cdn-icons-png.flaticon.com/128/9422/9422222.png',
-    
-    // DEBUG MODE
-    debugMode: false // Set true để troubleshoot
+    celebrationIcon: 'https://cdn-icons-png.flaticon.com/128/9422/9422222.png'
   };
 
   try {
@@ -154,20 +148,32 @@ function sendDailyReportSummary() {
       return 'background: linear-gradient(135deg, #ef4444, #dc2626); color: white;';
     };
 
+    // Progressive Star Color Function
+    const getStarColor = (starCount, totalPossible) => {
+      const ratio = starCount / totalPossible;
+      if (ratio >= 0.9) return '#22c55e'; // Xanh đậm - Xuất sắc
+      if (ratio >= 0.7) return '#84cc16'; // Xanh lime - Tốt  
+      if (ratio >= 0.5) return '#eab308'; // Vàng - Trung bình
+      return '#94a3b8'; // Xám - Cần cải thiện
+    };
+
+    // Tính số ngày làm việc tuần này
+    const workDaysThisWeek = isWeekend ? 6 : today.getDay();
+
     // Build employee lists (chỉ hiển thị nếu không phải weekly dashboard)
     let reportedHtml = '', notReportedHtml = '';
     
     if (!isWeekend) {
-      // Danh sách đã báo cáo với star calculation chính xác
+      // Danh sách đã báo cáo
       if (reported.length > 0) {
         const reportedWithStars = reported.map(name => ({ 
           name, 
-          stars: getWeeklyStars(sheet, name, ss, CONFIG, today)
+          stars: getWeeklyStars(sheet, name, ss, CONFIG) 
         }));
         reportedWithStars.sort((a, b) => b.stars - a.stars);
         
         reportedHtml = reportedWithStars.map(person => {
-          const starColor = getStarColor(person.stars);
+          const starColor = getStarColor(person.stars, workDaysThisWeek);
           const starsDisplay = person.stars > 0
             ? `<span style="color: ${starColor}; font-size: 16px;">★</span>`.repeat(person.stars)
             : '';
@@ -183,16 +189,16 @@ function sendDailyReportSummary() {
         reportedHtml = `<div style="padding: 16px 0; font-size: 15px; color: #8e8e93; font-style: italic;">Chưa có báo cáo nào</div>`;
       }
 
-      // Danh sách chưa báo cáo với star calculation chính xác
+      // Danh sách chưa báo cáo
       if (notReported.length > 0) {
         const notReportedWithStars = notReported.map(name => ({ 
           name, 
-          stars: getWeeklyStars(sheet, name, ss, CONFIG, today)
+          stars: getWeeklyStars(sheet, name, ss, CONFIG) 
         }));
         notReportedWithStars.sort((a, b) => b.stars - a.stars);
         
         notReportedHtml = notReportedWithStars.map(person => {
-          const starColor = getStarColor(person.stars);
+          const starColor = getStarColor(person.stars, workDaysThisWeek);
           const starsDisplay = person.stars > 0
             ? `<span style="color: ${starColor}; font-size: 16px;">★</span>`.repeat(person.stars)
             : '';
@@ -223,7 +229,7 @@ function sendDailyReportSummary() {
               Đã báo cáo
             </h2>
             <span style="${getPerformanceBadgeStyle(reported.length, totalEmployees)} padding: 6px 12px; border-radius: 12px; font-weight: 600; font-size: 13px; min-width: 60px; text-align: center;">
-              ${reported.length}/${totalEmployees}
+              ${reported.length}/${totalEmployees} ${reported.length === totalEmployees ? '' : ''}
             </span>
           </div>
         </div>
@@ -241,7 +247,7 @@ function sendDailyReportSummary() {
               Chưa báo cáo
             </h2>
             <span style="${getPerformanceBadgeStyle(totalEmployees - notReported.length, totalEmployees)} padding: 6px 12px; border-radius: 12px; font-weight: 600; font-size: 13px; min-width: 60px; text-align: center;">
-              ${notReported.length}/${totalEmployees}
+              ${notReported.length}/${totalEmployees} ${notReported.length === 0 ? '' : ''}
             </span>
           </div>
         </div>
@@ -347,121 +353,7 @@ function sendEmailWithRetry(emailConfig, maxRetries = 3) {
 }
 
 /**
- * FINAL FIXED: Weekly Stars Calculation - Tính đúng từ thứ 2 tuần hiện tại đến hôm nay
- */
-function getWeeklyStars(sheet, employeeName, ss, CONFIG, currentDate = new Date()) {
-  try {
-    const currentDayOfWeek = currentDate.getDay(); // 0=CN, 1=T2, 2=T3, 3=T4, 4=T5, 5=T6, 6=T7
-    
-    // FIXED: Tìm thứ 2 của tuần hiện tại
-    let mondayOffset;
-    if (currentDayOfWeek === 0) {
-      // Nếu hôm nay là Chủ nhật -> lấy thứ 2 tuần trước (6 ngày trước)
-      mondayOffset = -6;
-    } else {
-      // Nếu là T2-T7 -> lấy thứ 2 tuần này
-      mondayOffset = -(currentDayOfWeek - 1);
-    }
-    
-    const mondayThisWeek = new Date(currentDate);
-    mondayThisWeek.setDate(currentDate.getDate() + mondayOffset);
-    
-    let stars = 0;
-    
-    // FIXED: Tính số ngày từ thứ 2 tuần này đến hôm nay (bao gồm hôm nay)
-    let daysToCheck;
-    if (currentDayOfWeek === 0) {
-      // Chủ nhật: check 6 ngày (T2->T7 tuần trước)
-      daysToCheck = 6;
-    } else {
-      // T2->T7: check từ T2 tuần này đến hôm nay
-      daysToCheck = currentDayOfWeek;
-    }
-    
-    if (CONFIG.debugMode) {
-      const dayNames = ['Chủ nhật', 'Thứ hai', 'Thứ ba', 'Thứ tư', 'Thứ năm', 'Thứ sáu', 'Thứ bảy'];
-      Logger.log(`🔍 ${employeeName}: Hôm nay là ${dayNames[currentDayOfWeek]} (${currentDayOfWeek})`);
-      Logger.log(`📅 Thứ 2 tuần này: ${Utilities.formatDate(mondayThisWeek, ss.getSpreadsheetTimeZone(), "dd/MM/yyyy")}`);
-      Logger.log(`📊 Kiểm tra ${daysToCheck} ngày từ thứ 2 đến hôm nay`);
-    }
-    
-    // Duyệt từng ngày từ thứ 2 tuần này đến hôm nay
-    for (let dayOffset = 0; dayOffset < daysToCheck; dayOffset++) {
-      const checkDate = new Date(mondayThisWeek);
-      checkDate.setDate(mondayThisWeek.getDate() + dayOffset);
-      const checkDateStr = Utilities.formatDate(checkDate, ss.getSpreadsheetTimeZone(), "M/d/yyyy");
-      
-      if (CONFIG.debugMode) {
-        Logger.log(`📋 Checking ngày ${checkDateStr} cho ${employeeName}`);
-      }
-      
-      // Tìm trong tất cả ranges
-      let foundReport = false;
-      for (let i = 0; i < CONFIG.dateHeaderRanges.length && !foundReport; i++) {
-        try {
-          const headerRange = sheet.getRange(CONFIG.dateHeaderRanges[i]);
-          const headerValues = headerRange.getValues()[0];
-          
-          for (let j = 0; j < headerValues.length; j++) {
-            const cell = headerValues[j];
-            if (cell instanceof Date) {
-              const dateStr = Utilities.formatDate(cell, ss.getSpreadsheetTimeZone(), "M/d/yyyy");
-              if (dateStr === checkDateStr) {
-                const dateColumnIndex = headerRange.getColumn() + j;
-                const dataRange = sheet.getRange(CONFIG.dataRanges[i]);
-                const values = dataRange.getValues();
-                
-                for (let row of values) {
-                  const tenNV = row[2];
-                  const reportMark = row[dateColumnIndex - dataRange.getColumn()];
-                  
-                  if (tenNV === employeeName && reportMark === 'X') {
-                    stars++;
-                    foundReport = true;
-                    if (CONFIG.debugMode) {
-                      Logger.log(`⭐ ${employeeName} có báo cáo ngày ${checkDateStr} -> ${stars} sao`);
-                    }
-                    break;
-                  }
-                }
-                break;
-              }
-            }
-          }
-        } catch (error) {
-          Logger.log(`⚠️ Lỗi khi đếm sao cho ${employeeName} ngày ${checkDateStr}: ${error.message}`);
-          continue;
-        }
-      }
-    }
-    
-    if (CONFIG.debugMode) {
-      Logger.log(`🌟 FINAL: ${employeeName} có ${stars}/${daysToCheck} sao`);
-    }
-    
-    return stars;
-  } catch (error) {
-    Logger.log(`❌ Lỗi khi lấy weekly stars cho ${employeeName}: ${error.message}`);
-    return 0;
-  }
-}
-
-/**
- * SIMPLIFIED: Star Color Function - Chỉ dựa vào số sao tuyệt đối
- */
-function getStarColor(starCount) {
-  // Sử dụng thang màu đơn giản theo số sao
-  if (starCount >= 6) return '#22c55e';       // 6 sao - Xanh đậm hoàn hảo
-  if (starCount >= 5) return '#84cc16';       // 5 sao - Xanh lime xuất sắc  
-  if (starCount >= 4) return '#22c55e';       // 4 sao - Xanh tốt
-  if (starCount >= 3) return '#eab308';       // 3 sao - Vàng khá
-  if (starCount >= 2) return '#f97316';       // 2 sao - Cam trung bình
-  if (starCount >= 1) return '#94a3b8';       // 1 sao - Xám nhạt cần cải thiện
-  return '#d1d5db';                           // 0 sao - Xám nhạt chưa bắt đầu
-}
-
-/**
- * Xây dựng Weekly Performance Dashboard cho Chủ nhật
+ * Xây dựng Weekly Performance Dashboard cho Chủ nhật (Đơn giản hóa)
  */
 function buildWeeklyDashboard(sheet, ss, CONFIG, colors) {
   try {
@@ -472,10 +364,10 @@ function buildWeeklyDashboard(sheet, ss, CONFIG, colors) {
     // Lấy tất cả nhân viên và performance tuần
     const allEmployees = getAllEmployeesWeeklyData(sheet, ss, CONFIG, monday);
     
-    // Daily Performance Heatmap
+    // Daily Performance Heatmap (FIXED: mobile responsive)
     const heatmap = buildMobileResponsiveHeatmap(allEmployees, monday, ss, CONFIG);
     
-    // Individual Performance Dashboard
+    // Individual Performance Dashboard (FIXED: simplified text)
     const leaderboard = buildSimplifiedLeaderboard(allEmployees, CONFIG);
     
     return `
@@ -489,13 +381,13 @@ function buildWeeklyDashboard(sheet, ss, CONFIG, colors) {
 }
 
 /**
- * Mobile Responsive Heatmap
+ * FIXED: Mobile Responsive Heatmap (không bị tràn trên mobile)
  */
 function buildMobileResponsiveHeatmap(employees, monday, ss, CONFIG) {
   const dayNames = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
   let heatmapHtml = '';
   
-  // Tính tỷ lệ cho từng ngày
+  // Tính tỷ lệ cho từng ngày để xác định ngày thấp nhất
   const dayRates = [];
   for (let day = 0; day < 6; day++) {
     const dayReports = employees.filter(emp => emp.dailyReports[day]).length;
@@ -511,6 +403,7 @@ function buildMobileResponsiveHeatmap(employees, monday, ss, CONFIG) {
     const dayRate = dayRates[day];
     const percentage = Math.round(dayRate * 100);
     
+    // Thiết kế minimalist: chỉ trắng với viền, tô đỏ cho ngày thấp nhất
     let boxStyle = '';
     let textColor = '#1a1a1a';
     
@@ -550,10 +443,10 @@ function buildMobileResponsiveHeatmap(employees, monday, ss, CONFIG) {
 }
 
 /**
- * Simplified Leaderboard
+ * FIXED: Simplified Leaderboard (rút gọn text "Streak: 6 báo cáo")
  */
 function buildSimplifiedLeaderboard(employees, CONFIG) {
-  // Remove duplicates by name
+  // Remove duplicates by name (keep highest performance version)
   const uniqueEmployees = [];
   const employeeMap = new Map();
   
@@ -564,9 +457,10 @@ function buildSimplifiedLeaderboard(employees, CONFIG) {
     }
   });
   
+  // Convert map back to array
   employeeMap.forEach(emp => uniqueEmployees.push(emp));
   
-  // Group by star count
+  // Group unique employees by star count
   const starGroups = {};
   uniqueEmployees.forEach(emp => {
     const stars = emp.totalReports;
@@ -576,20 +470,26 @@ function buildSimplifiedLeaderboard(employees, CONFIG) {
     starGroups[stars].push(emp);
   });
   
-  // Sort star levels descending
+  // Sort star levels descending (6, 5, 4, 3, 2, 1, 0)
   const sortedStarLevels = Object.keys(starGroups)
     .map(Number)
     .sort((a, b) => b - a);
   
-  const medalMap = { 0: '🥇', 1: '🥈', 2: '🥉' };
+  // Assign medals to top 3 star groups only
+  const medalMap = {
+    0: '🥇', // Highest star group gets gold
+    1: '🥈', // Second highest gets silver  
+    2: '🥉'  // Third highest gets bronze
+  };
   
   let leaderboardHtml = '';
   let currentRank = 1;
   
   sortedStarLevels.forEach((starLevel, groupIndex) => {
     const employeesInGroup = starGroups[starLevel];
-    const medal = medalMap[groupIndex] || '';
+    const medal = medalMap[groupIndex] || ''; // No medal for 4th+ groups
     
+    // Sort employees within same star group by name alphabetically
     employeesInGroup.sort((a, b) => a.name.localeCompare(b.name));
     
     employeesInGroup.forEach(emp => {
@@ -637,6 +537,7 @@ function getAllEmployeesWeeklyData(sheet, ss, CONFIG, monday) {
   const employees = [];
   
   try {
+    // Lấy tất cả nhân viên từ data ranges
     for (let i = 0; i < CONFIG.dataRanges.length; i++) {
       try {
         const dataRange = sheet.getRange(CONFIG.dataRanges[i]);
@@ -685,6 +586,7 @@ function getEmployeeWeeklyPerformance(sheet, employeeName, ss, CONFIG, monday) {
       
       let reported = false;
       
+      // Tìm trong tất cả ranges
       for (let i = 0; i < CONFIG.dateHeaderRanges.length; i++) {
         try {
           const headerRange = sheet.getRange(CONFIG.dateHeaderRanges[i]);
@@ -764,31 +666,72 @@ function calculateTrend(dailyReports) {
 }
 
 /**
- * TEST FUNCTION - Chạy để verify logic mới
+ * Progressive Star Color Function (Helper)
  */
-function testWeeklyStarsLogic() {
-  Logger.log('🧪 TESTING WEEKLY STARS LOGIC - 2025-07-01 (Thứ ba)');
-  
-  // Test case: Hôm nay là thứ 3 (1/7/2025)
-  const today = new Date('2025-07-01'); // Thứ ba
-  const currentDayOfWeek = today.getDay(); // 2
-  
-  // Thứ 2 tuần này: 30/6/2025
-  const mondayOffset = -(currentDayOfWeek - 1); // -(2-1) = -1
-  const mondayThisWeek = new Date(today);
-  mondayThisWeek.setDate(today.getDate() + mondayOffset); // 1/7 + (-1) = 30/6
-  
-  // Số ngày cần check: từ T2 (30/6) đến T3 (1/7) = 2 ngày
-  const daysToCheck = currentDayOfWeek; // 2
-  
-  Logger.log(`📅 Hôm nay: ${today.toDateString()} (Thứ ${currentDayOfWeek + 1})`);
-  Logger.log(`📅 Thứ 2 tuần này: ${mondayThisWeek.toDateString()}`);
-  Logger.log(`📊 Cần check: ${daysToCheck} ngày`);
-  
-  // Giả lập: người đã báo cáo 30/6 và 1/7
-  const mockStars = 2; // 2 sao cho 2 ngày
-  Logger.log(`⭐ Kết quả: ${mockStars} sao cho ${daysToCheck} ngày`);
-  Logger.log(`🎨 Màu sao: ${getStarColor(mockStars)}`);
-  
-  Logger.log('✅ Logic đã đúng: Thứ ba có 2 sao (T2 + T3) với màu cam (#f97316)');
+function getStarColor(starCount) {
+  const ratio = starCount / 6;
+  if (ratio >= 0.9) return '#22c55e'; // Xanh đậm - Xuất sắc
+  if (ratio >= 0.7) return '#84cc16'; // Xanh lime - Tốt  
+  if (ratio >= 0.5) return '#eab308'; // Vàng - Trung bình
+  return '#94a3b8'; // Xám - Cần cải thiện
+}
+
+/**
+ * Helper function for daily reports (existing function)
+ */
+function getWeeklyStars(sheet, employeeName, ss, CONFIG) {
+  try {
+    const today = new Date();
+    const currentDay = today.getDay();
+    const mondayOffset = currentDay === 0 ? -6 : -(currentDay - 1);
+    const monday = new Date(today);
+    monday.setDate(today.getDate() + mondayOffset);
+    
+    let stars = 0;
+    const daysToCheck = currentDay === 0 ? 6 : currentDay;
+    
+    for (let dayOffset = 0; dayOffset < daysToCheck; dayOffset++) {
+      const checkDate = new Date(monday);
+      checkDate.setDate(monday.getDate() + dayOffset);
+      const checkDateStr = Utilities.formatDate(checkDate, ss.getSpreadsheetTimeZone(), "M/d/yyyy");
+      
+      for (let i = 0; i < CONFIG.dateHeaderRanges.length; i++) {
+        try {
+          const headerRange = sheet.getRange(CONFIG.dateHeaderRanges[i]);
+          const headerValues = headerRange.getValues()[0];
+          
+          for (let j = 0; j < headerValues.length; j++) {
+            const cell = headerValues[j];
+            if (cell instanceof Date) {
+              const dateStr = Utilities.formatDate(cell, ss.getSpreadsheetTimeZone(), "M/d/yyyy");
+              if (dateStr === checkDateStr) {
+                const dateColumnIndex = headerRange.getColumn() + j;
+                const dataRange = sheet.getRange(CONFIG.dataRanges[i]);
+                const values = dataRange.getValues();
+                
+                for (let row of values) {
+                  const tenNV = row[2];
+                  const reportMark = row[dateColumnIndex - dataRange.getColumn()];
+                  
+                  if (tenNV === employeeName && reportMark === 'X') {
+                    stars++;
+                    break;
+                  }
+                }
+                break;
+              }
+            }
+          }
+        } catch (error) {
+          Logger.log(`⚠️ Lỗi khi đếm sao cho ${employeeName} ngày ${checkDateStr}: ${error.message}`);
+          continue;
+        }
+      }
+    }
+    
+    return stars;
+  } catch (error) {
+    Logger.log(`❌ Lỗi khi lấy weekly stars cho ${employeeName}: ${error.message}`);
+    return 0;
+  }
 }
