@@ -2,7 +2,7 @@
  * FINAL VERSION: Gửi email báo cáo tổng hợp ngày 
  * 
  * FIXED:
- * ✅ Weekly stars calculation - Tính đúng từ thứ 2 tuần hiện tại đến hôm nay. 
+ * ✅ Weekly stars calculation - Tính đúng từ thứ 2 tuần hiện tại đến hôm nay
  * ✅ Remove fraction display - Bỏ hiển thị 1/2, 2/3... 
  * ✅ Accurate star colors - Màu sao chính xác theo performance thực tế
  * 
@@ -15,7 +15,7 @@ function sendDailyReportSummary() {
     sheetName: 'check bc',
     
     // Uncomment khi deploy production
-    emailTo: 'luan.tran@hoanmy.com, khanh.tran@hoanmy.com, hong.le@hoanmy.com, quynh.bui@hoanmy.com, thuy.pham@hoanmy.com, anh.ngo@hoanmy.com, truc.nguyen3@hoanmy.com, trang.nguyen9@hoanmy.com',
+    emailTo: 'luan.tran@hoanmy.com, khanh.tran@hoanmy.com, hong.le@hoanmy.com, quynh.bui@hoanmy.com, thuy.pham@hoanmy.com, anh.ngo@hoanmy.com, truc.nguyen3@hoanmy.com, trang.nguyen9@hoanmy.com, tram.mai@hoanmy.com, vuong.duong@hoanmy.com, phi.tran@hoanmy.com, quoc.nguyen3@hoanmy.com',
     // emailTo: 'quoc.nguyen3@hoanmy.com',
 
     dateHeaderRanges: ['e3:n3', 'e17:n17', 'e30:o30'],
