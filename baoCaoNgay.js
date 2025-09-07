@@ -23,8 +23,8 @@ function sendDailyReportSummary(customDate = null) {
     sheetName: 'check bc',
 
     // Uncomment khi deploy production
-    // emailTo: 'luan.tran@hoanmy.com, khanh.tran@hoanmy.com, hong.le@hoanmy.com, quynh.bui@hoanmy.com, thuy.pham@hoanmy.com, anh.ngo@hoanmy.com, truc.nguyen3@hoanmy.com, trang.nguyen9@hoanmy.com, tram.mai@hoanmy.com, vuong.duong@hoanmy.com, phong.trinh@hoanmy.com, phi.tran@hoanmy.com, quoc.nguyen3@hoanmy.com',
-    emailTo: 'quoc.nguyen3@hoanmy.com',
+    emailTo: 'luan.tran@hoanmy.com, khanh.tran@hoanmy.com, hong.le@hoanmy.com, quynh.bui@hoanmy.com, thuy.pham@hoanmy.com, anh.ngo@hoanmy.com, truc.nguyen3@hoanmy.com, trang.nguyen9@hoanmy.com, tram.mai@hoanmy.com, vuong.duong@hoanmy.com, phong.trinh@hoanmy.com, phi.tran@hoanmy.com, quoc.nguyen3@hoanmy.com',
+    // emailTo: 'quoc.nguyen3@hoanmy.com',
 
     dateHeaderRanges: ['e3:n3', 'e17:n17', 'e30:o30'],
     dataRanges: ['B4:n13', 'B18:n27', 'B31:o40'],
@@ -123,7 +123,7 @@ function sendDailyReportSummary(customDate = null) {
     const totalEmployees = reported.length + notReported.length;
     const isPerfectDay = notReported.length === 0 && reported.length > 0;
     const subject = isWeekend ?
-      `HMSG | P.KD - THỐNG KÊ TUẦN & BÁO CÁO ${targetDateStr}${isCustomDate ? ' ' : ''}` :
+      `HMSG | P.KD - THỐNG KÊ TUẦN` :
       `HMSG | P.KD - TỔNG HỢP BÁO CÁO NGÀY ${targetDateStr}${isCustomDate ? ' ' : ''}`;
 
     // Chọn icons theo trạng thái
@@ -135,13 +135,13 @@ function sendDailyReportSummary(customDate = null) {
     const colors = isPerfectDay ? {
       border: '#22c55e',
       headerTitle: '#22c55e',
-      headerSubtitle: '#16a34a',
-      dateText: '#16a34a',
+      headerSubtitle: '#22c55e',
+      dateText: '#22c55e',
       sectionTitle: '#22c55e',
-      namesList: '#15803d',
-      footerName: '#16a34a',
-      footerLabel: '#22c55e',
-      disclaimerColor: '#16a34a'
+      namesList: '#22c55e',
+      footerName: '#22c55e',
+      footerLabel: '#22c55e', // Xanh khi perfect day
+      disclaimerColor: '#22c55e'
     } : {
       border: '#000000',
       headerTitle: '#1a1a1a',
@@ -151,7 +151,7 @@ function sendDailyReportSummary(customDate = null) {
       pendingTitle: '#dc3545',
       namesList: '#1a1a1a',
       footerName: '#8e8e93',
-      footerLabel: '#1a1a1a',
+      footerLabel: '#1a1a1a', // Đen khi không perfect
       disclaimerColor: '#8e8e93'
     };
 
@@ -189,7 +189,7 @@ function sendDailyReportSummary(customDate = null) {
             : '';
 
           return `
-            <div style="padding: 16px 0; font-size: 15px; font-weight: 400; color: ${colors.namesList}; border-bottom: 1px solid #f5f5f5; display: flex; justify-content: space-between; align-items: center;">
+            <div style="padding: 16px 0; font-size: 15px; font-weight: 400; color: ${colors.namesList}; display: flex; justify-content: space-between; align-items: center;">
               <span style="flex: 1;">${person.name}</span>
               ${person.stars > 0 ? `<span style="display: flex; gap: 2px;">${starsDisplay}</span>` : ''}
             </div>
@@ -214,29 +214,25 @@ function sendDailyReportSummary(customDate = null) {
             : '';
 
           return `
-            <div style="padding: 16px 0; font-size: 15px; font-weight: 400; color: ${colors.namesList}; border-bottom: 1px solid #f5f5f5; display: flex; justify-content: space-between; align-items: center;">
+            <div style="padding: 16px 0; font-size: 15px; font-weight: 400; color: ${colors.namesList}; display: flex; justify-content: space-between; align-items: center;">
               <span style="flex: 1;">${person.name}</span>
               ${person.stars > 0 ? `<span style="display: flex; gap: 2px;">${starsDisplay}</span>` : ''}
             </div>
           `;
         }).join('');
       } else {
-        notReportedHtml = `<div style="padding: 16px 0; font-size: 15px; color: ${colors.namesList}; font-style: italic;">
-          Tất cả đã báo cáo
-          <img src="${CONFIG.celebrationIcon}" width="20" height="20" style="margin-left: 8px;" alt="Celebration">
-        </div>`;
+        notReportedHtml = ``; // Bỏ trống khi perfect day
       }
     }
 
     // Daily sections for non-weekend days
     const dailySections = !isWeekend ? `
       <!-- Completed Section -->
-      <div style="margin-bottom: 32px; background-color: #ffffff; border: 1px solid #e9ecef; border-radius: 12px; overflow: hidden;">
-        <div style="padding: 20px 24px 16px; border-bottom: 1px solid #f5f5f5;">
+      <div style="margin-bottom: 32px; background-color: #ffffff; border-radius: 12px; overflow: hidden;">
+        <div style="padding: 20px 24px 16px; ${isPerfectDay ? 'border-bottom: 1px solid #22c55e;' : 'border-bottom: 1px solid #000000;'}">
           <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
             <h2 style="margin: 0; font-size: 18px; font-weight: 500; color: ${colors.sectionTitle}; display: flex; align-items: center;">
-              <img src="${completedIcon}" width="20" height="20" style="margin-right: 12px;" alt="Completed">
-              Đã báo cáo
+              ${isPerfectDay ? 'Tất cả đã báo cáo' : 'Đã báo cáo'}
             </h2>
             <span style="${getPerformanceBadgeStyle(reported.length, totalEmployees)} padding: 6px 12px; border-radius: 12px; font-weight: 600; font-size: 13px; min-width: 60px; text-align: center;">
               ${reported.length}/${totalEmployees}
@@ -249,11 +245,10 @@ function sendDailyReportSummary(customDate = null) {
       </div>
 
       <!-- Pending Section -->
-      <div style="margin-bottom: 40px; background-color: #ffffff; border: 1px solid #e9ecef; border-radius: 12px; overflow: hidden;">
-        <div style="padding: 20px 24px 16px; border-bottom: 1px solid #f5f5f5;">
+      ${!isPerfectDay ? `<div style="margin-bottom: 40px; background-color: #ffffff; border-radius: 12px; overflow: hidden;">
+        <div style="padding: 20px 24px 16px; border-bottom: 1px solid #dc3545;">
           <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
-            <h2 style="margin: 0; font-size: 18px; font-weight: 500; color: ${isPerfectDay ? colors.sectionTitle : colors.pendingTitle}; display: flex; align-items: center;">
-              <img src="${pendingIcon}" width="20" height="20" style="margin-right: 12px;" alt="Pending">
+            <h2 style="margin: 0; font-size: 18px; font-weight: 500; color: ${colors.pendingTitle};">
               Chưa báo cáo
             </h2>
             <span style="${getPerformanceBadgeStyle(totalEmployees - notReported.length, totalEmployees)} padding: 6px 12px; border-radius: 12px; font-weight: 600; font-size: 13px; min-width: 60px; text-align: center;">
@@ -264,7 +259,7 @@ function sendDailyReportSummary(customDate = null) {
         <div style="padding: 0 24px 8px;">
           ${notReportedHtml}
         </div>
-      </div>
+      </div>` : ''}
     ` : '';
 
     // HTML Email Template
@@ -279,22 +274,21 @@ function sendDailyReportSummary(customDate = null) {
       <body style="margin: 0; padding: 0; background-color: #ffffff; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
         
         <!-- Main Container -->
-        <div style="max-width: 600px; margin: 40px auto; padding: 40px; border: 1px solid ${colors.border}; border-radius: 12px;">
+        <div style="max-width: 600px; margin: 40px auto; padding: 40px;">
           
           <!-- Header -->
           <div style="text-align: center; margin-bottom: 48px;">
             <h1 style="margin: 0; font-size: 28px; font-weight: 300; color: ${colors.headerTitle}; letter-spacing: -0.5px;">
-              ${isWeekend ? 'Thống kê tuần' : `Báo cáo tổng hợp ${isPerfectDay ? '🎉' : ''}`}
+              ${isWeekend ? 'Thống kê tuần' : `Báo cáo tổng hợp ${isPerfectDay ? '' : ''}`}
             </h1>
             <p style="margin: 8px 0 0; font-size: 16px; font-weight: 400; color: ${colors.headerSubtitle};">
-              Phòng Kinh Doanh HMSG
+              Phòng Kinh Doanh
             </p>
           </div>
 
           <!-- Date -->
           <div style="margin-bottom: 32px;">
             <span style="font-size: 14px; font-weight: 500; color: ${colors.dateText};">
-              <img src="${calendarIcon}" width="16" height="16" style="vertical-align: middle; margin-right: 8px;" alt="Calendar">
               ${detailedDate}
             </span>
           </div>
@@ -306,27 +300,13 @@ function sendDailyReportSummary(customDate = null) {
           ${dailySections}
 
           <!-- Footer -->
-          <div style="text-align: center; padding-top: 32px; border-top: 1px solid #f5f5f5;">
-            <p style="margin: 0 0 6px; font-size: 12px; font-weight: 400; color: ${colors.footerLabel};">
+          <div style="text-align: center; padding-top: 32px;">
+            <p style="margin: 0; font-size: 12px; font-weight: 400; color: ${colors.footerLabel};">
               Trân trọng
             </p>
-            <p style="margin: 0; font-size: 12px; font-weight: 500; color: ${colors.footerName};">
-              Nguyen Dinh Quoc
-            </p>
           </div>
 
-          <!-- Disclaimer -->
-          <div style="margin-top: 40px; text-align: center;">
-            <p style="margin: 0; font-size: 12px; color: ${colors.disclaimerColor}; line-height: 1.4; font-style: italic;">
-              ${isCustomDate ?
-        `Báo cáo ngày ${targetDateStr}` :
-        (isWeekend ? 'Báo cáo thống kê tuần tự động' : 'Đây là báo cáo tự động')
-      }. Vui lòng không trả lời email này.<br>
-              Liên hệ: quoc.nguyen3@hoanmy.com
-            </p>
           </div>
-
-        </div>
         
       </body>
       </html>
@@ -541,6 +521,7 @@ function buildWeeklyDashboard(sheet, ss, CONFIG, colors, targetDate = new Date()
 
     return `
       ${heatmap}
+      <div style="border-top: 1px solid #22c55e; margin: 20px 0;"></div>
       ${leaderboard}
     `;
   } catch (error) {
@@ -574,25 +555,30 @@ function buildMobileResponsiveHeatmap(employees, monday, ss, CONFIG) {
 
     let boxStyle = '';
     let textColor = '#1a1a1a';
+    let displayText = '';
 
-    if (dayRate === minRate && dayRate < 1) {
-      // Ngày có tỷ lệ thấp nhất -> tô đỏ
-      boxStyle = 'background-color: #fef2f2; border: 2px solid #ef4444; color: #dc2626;';
-      textColor = '#dc2626';
+    if (dayRate === 0) {
+      // Ngày nghỉ (0%) -> hiển thị 'x'
+      boxStyle = 'background-color: #ffffff; color: #1a1a1a;';
+      textColor = '#1a1a1a';
+      displayText = 'x';
     } else if (dayRate === 1) {
-      // Perfect day -> viền xanh
-      boxStyle = 'background-color: #ffffff; border: 2px solid #22c55e; color: #22c55e;';
+      // Perfect day (100%) -> màu xanh
+      boxStyle = 'background-color: #ffffff; color: #22c55e;';
       textColor = '#22c55e';
+      displayText = '100%';
     } else {
-      // Normal day -> viền xám nhạt
-      boxStyle = 'background-color: #ffffff; border: 1px solid #e5e7eb; color: #1a1a1a;';
+      // Ngày thường (dưới 100%) -> màu đen
+      boxStyle = 'background-color: #ffffff; color: #1a1a1a;';
+      textColor = '#1a1a1a';
+      displayText = `${percentage}%`;
     }
 
     heatmapHtml += `
       <div style="text-align: center; flex: 1; min-width: 0;">
         <div style="${boxStyle} padding: 12px 4px; border-radius: 8px; margin: 0 2px;">
           <div style="font-size: 10px; font-weight: 600; margin-bottom: 6px; color: ${textColor};">${dayNames[day]}</div>
-          <div style="font-size: 14px; font-weight: 700; color: ${textColor};">${percentage}%</div>
+          <div style="font-size: 14px; font-weight: 700; color: ${textColor};">${displayText}</div>
         </div>
       </div>
     `;
@@ -600,9 +586,6 @@ function buildMobileResponsiveHeatmap(employees, monday, ss, CONFIG) {
 
   return `
     <div style="margin-bottom: 32px; background-color: #ffffff; border-radius: 12px; padding: 20px;">
-      <h3 style="margin: 0 0 16px; font-size: 16px; font-weight: 600; color: #374151; text-align: center;">
-        Performance Heatmap Tuần Này
-      </h3>
       <div style="display: flex; gap: 0; overflow-x: auto;">
         ${heatmapHtml}
       </div>
@@ -660,15 +643,12 @@ function buildSimplifiedLeaderboard(employees, CONFIG) {
         : '<span style="color: #94a3b8; font-size: 14px;">Chưa báo cáo</span>';
 
       leaderboardHtml += `
-        <div style="display: flex; align-items: center; padding: 12px 0; border-bottom: 1px solid #f3f4f6;">
+        <div style="display: flex; align-items: center; padding: 12px 0;">
           <div style="width: 40px; text-align: center; font-size: 16px;">
             ${medal || currentRank}
           </div>
           <div style="flex: 1; margin-left: 12px;">
-            <div style="font-size: 14px; font-weight: 500; color: #374151;">${emp.name}</div>
-            <div style="font-size: 12px; color: #6b7280;">
-              Streak: ${emp.totalReports} báo cáo
-            </div>
+            <div style="font-size: 14px; font-weight: 400; color: #22c55e;">${emp.name}</div>
           </div>
           <div style="text-align: right;">
             <div style="display: flex; gap: 2px; justify-content: flex-end;">
@@ -682,10 +662,7 @@ function buildSimplifiedLeaderboard(employees, CONFIG) {
   });
 
   return `
-    <div style="margin-bottom: 32px; background-color: #ffffff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 20px;">
-      <h3 style="margin: 0 0 16px; font-size: 16px; font-weight: 600; color: #374151; text-align: center;">
-        Individual Performance Dashboard
-      </h3>
+    <div style="margin-bottom: 16px; background-color: #ffffff; border-radius: 12px; padding: 16px;">
       ${leaderboardHtml}
     </div>
   `;
