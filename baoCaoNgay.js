@@ -23,8 +23,8 @@ function sendDailyReportSummary(customDate = null) {
     sheetName: 'check bc',
 
     // Uncomment khi deploy production
-    emailTo: 'luan.tran@hoanmy.com, khanh.tran@hoanmy.com, hong.le@hoanmy.com, quynh.bui@hoanmy.com, thuy.pham@hoanmy.com, anh.ngo@hoanmy.com, truc.nguyen3@hoanmy.com, trang.nguyen9@hoanmy.com, tram.mai@hoanmy.com, vuong.duong@hoanmy.com, phong.trinh@hoanmy.com, phi.tran@hoanmy.com, quoc.nguyen3@hoanmy.com',
-    // emailTo: 'quoc.nguyen3@hoanmy.com',
+    // emailTo: 'luan.tran@hoanmy.com, khanh.tran@hoanmy.com, hong.le@hoanmy.com, quynh.bui@hoanmy.com, thuy.pham@hoanmy.com, anh.ngo@hoanmy.com, truc.nguyen3@hoanmy.com, trang.nguyen9@hoanmy.com, tram.mai@hoanmy.com, vuong.duong@hoanmy.com, phong.trinh@hoanmy.com, phi.tran@hoanmy.com, quoc.nguyen3@hoanmy.com',
+    emailTo: 'quoc.nguyen3@hoanmy.com',
 
     dateHeaderRanges: ['e3:n3', 'e17:n17', 'e30:o30'],
     dataRanges: ['B4:n13', 'B18:n27', 'B31:o40'],
@@ -566,12 +566,12 @@ function buildMobileResponsiveHeatmap(employees, monday, ss, CONFIG) {
       // Perfect day (100%) -> màu xanh
       boxStyle = 'background-color: #ffffff; color: #22c55e;';
       textColor = '#22c55e';
-      displayText = '100%';
+      displayText = '100';
     } else {
       // Ngày thường (dưới 100%) -> màu đen
       boxStyle = 'background-color: #ffffff; color: #1a1a1a;';
       textColor = '#1a1a1a';
-      displayText = `${percentage}%`;
+      displayText = `${percentage}`;
     }
 
     heatmapHtml += `
