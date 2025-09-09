@@ -189,10 +189,16 @@ function sendDailyReportSummary(customDate = null) {
             : '';
 
           return `
-            <div style="padding: 16px 0; font-size: 15px; font-weight: 400; color: ${colors.namesList}; display: flex; justify-content: space-between; align-items: center;">
-              <span style="flex: 1;">${person.name}</span>
-              ${person.stars > 0 ? `<span style="display: flex; gap: 2px;">${starsDisplay}</span>` : ''}
-            </div>
+            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="padding: 16px 0;">
+              <tr>
+                <td style="font-size: 15px; font-weight: 400; color: ${colors.namesList}; vertical-align: middle;">
+                  ${person.name}
+                </td>
+                <td style="text-align: right; vertical-align: middle;">
+                  ${person.stars > 0 ? `<span style="white-space: nowrap;">${starsDisplay}</span>` : ''}
+                </td>
+              </tr>
+            </table>
           `;
         }).join('');
       } else {
@@ -214,10 +220,16 @@ function sendDailyReportSummary(customDate = null) {
             : '';
 
           return `
-            <div style="padding: 16px 0; font-size: 15px; font-weight: 400; color: ${colors.namesList}; display: flex; justify-content: space-between; align-items: center;">
-              <span style="flex: 1;">${person.name}</span>
-              ${person.stars > 0 ? `<span style="display: flex; gap: 2px;">${starsDisplay}</span>` : ''}
-            </div>
+            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="padding: 16px 0;">
+              <tr>
+                <td style="font-size: 15px; font-weight: 400; color: ${colors.namesList}; vertical-align: middle;">
+                  ${person.name}
+                </td>
+                <td style="text-align: right; vertical-align: middle;">
+                  ${person.stars > 0 ? `<span style="white-space: nowrap;">${starsDisplay}</span>` : ''}
+                </td>
+              </tr>
+            </table>
           `;
         }).join('');
       } else {
@@ -228,16 +240,22 @@ function sendDailyReportSummary(customDate = null) {
     // Daily sections for non-weekend days
     const dailySections = !isWeekend ? `
       <!-- Completed Section -->
-      <div style="margin-bottom: 32px; background-color: #ffffff; border-radius: 12px; overflow: hidden;">
+      <div style="margin-bottom: 32px; background-color: #ffffff; border-radius: 6px; overflow: hidden;">
         <div style="padding: 20px 24px 16px;">
-          <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
-            <h2 style="margin: 0; font-size: 18px; font-weight: 500; color: ${colors.sectionTitle}; display: flex; align-items: center;">
-              ${isPerfectDay ? 'Tất cả đã báo cáo' : 'Đã báo cáo'}
-            </h2>
-            <span style="${getPerformanceBadgeStyle(reported.length, totalEmployees)} padding: 6px 12px; border-radius: 12px; font-weight: 600; font-size: 13px; min-width: 60px; text-align: center;">
-              ${reported.length}/${totalEmployees}
-            </span>
-          </div>
+          <table width="100%" cellpadding="0" cellspacing="0" border="0">
+            <tr>
+              <td style="vertical-align: middle;">
+                <h2 style="margin: 0; font-size: 18px; font-weight: 500; color: ${colors.sectionTitle};">
+                  ${isPerfectDay ? 'Tất cả đã báo cáo' : 'Đã báo cáo'}
+                </h2>
+              </td>
+              <td style="vertical-align: middle; text-align: right;">
+                <span style="${getPerformanceBadgeStyle(reported.length, totalEmployees)} padding: 6px 12px; border-radius: 4px; font-weight: 600; font-size: 13px; min-width: 60px; text-align: center; display: inline-block;">
+                  ${reported.length}/${totalEmployees}
+                </span>
+              </td>
+            </tr>
+          </table>
         </div>
         <div style="padding: 0 24px 8px;">
           ${reportedHtml}
@@ -245,16 +263,22 @@ function sendDailyReportSummary(customDate = null) {
       </div>
 
       <!-- Pending Section -->
-      ${!isPerfectDay ? `<div style="margin-bottom: 40px; background-color: #ffffff; border-radius: 12px; overflow: hidden;">
+      ${!isPerfectDay ? `<div style="margin-bottom: 40px; background-color: #ffffff; border-radius: 6px; overflow: hidden;">
         <div style="padding: 20px 24px 16px;">
-          <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
-            <h2 style="margin: 0; font-size: 18px; font-weight: 500; color: ${colors.pendingTitle};">
-              Chưa báo cáo
-            </h2>
-            <span style="${getPerformanceBadgeStyle(totalEmployees - notReported.length, totalEmployees)} padding: 6px 12px; border-radius: 12px; font-weight: 600; font-size: 13px; min-width: 60px; text-align: center;">
-              ${notReported.length}/${totalEmployees}
-            </span>
-          </div>
+          <table width="100%" cellpadding="0" cellspacing="0" border="0">
+            <tr>
+              <td style="vertical-align: middle;">
+                <h2 style="margin: 0; font-size: 18px; font-weight: 500; color: ${colors.pendingTitle};">
+                  Chưa báo cáo
+                </h2>
+              </td>
+              <td style="vertical-align: middle; text-align: right;">
+                <span style="${getPerformanceBadgeStyle(totalEmployees - notReported.length, totalEmployees)} padding: 6px 12px; border-radius: 4px; font-weight: 600; font-size: 13px; min-width: 60px; text-align: center; display: inline-block;">
+                  ${notReported.length}/${totalEmployees}
+                </span>
+              </td>
+            </tr>
+          </table>
         </div>
         <div style="padding: 0 24px 8px;">
           ${notReportedHtml}
@@ -270,11 +294,23 @@ function sendDailyReportSummary(customDate = null) {
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>${isWeekend ? 'Thống kê tuần' : 'Báo cáo ngày'} ${targetDateStr}${isCustomDate ? ' ' : ''}</title>
+        <!--[if mso]>
+        <style type="text/css">
+          table { border-collapse: collapse; }
+          .container { width: 600px !important; }
+        </style>
+        <![endif]-->
       </head>
-      <body style="margin: 0; padding: 0; background-color: #ffffff; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
+      <body style="margin: 0; padding: 0; background-color: #ffffff; font-family: Arial, sans-serif;">
         
-        <!-- Main Container -->
-        <div style="max-width: 600px; margin: 40px auto; padding: 40px;">
+        <!-- Outer Container for Outlook Desktop -->
+        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #ffffff;">
+          <tr>
+            <td style="padding: 20px;">
+              <!-- Inner Container -->
+              <table width="600" cellpadding="0" cellspacing="0" border="0" style="max-width: 600px; margin: 0 auto;" class="container">
+                <tr>
+                  <td style="padding: 20px;">
           
           <!-- Header -->
           <div style="text-align: center; margin-bottom: 48px;">
@@ -306,7 +342,12 @@ function sendDailyReportSummary(customDate = null) {
             </p>
           </div>
 
-          </div>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
         
       </body>
       </html>
@@ -575,20 +616,22 @@ function buildMobileResponsiveHeatmap(employees, monday, ss, CONFIG) {
     }
 
     heatmapHtml += `
-      <div style="text-align: center; flex: 1; min-width: 0;">
-        <div style="${boxStyle} padding: 12px 4px; border-radius: 8px; margin: 0 2px;">
+      <td style="text-align: center; width: 16.66%;">
+        <div style="${boxStyle} padding: 12px 4px; border-radius: 6px; margin: 0 2px;">
           <div style="font-size: 10px; font-weight: 600; margin-bottom: 6px; color: ${textColor};">${dayNames[day]}</div>
           <div style="font-size: 14px; font-weight: 700; color: ${textColor};">${displayText}</div>
         </div>
-      </div>
+      </td>
     `;
   }
 
   return `
-    <div style="margin-bottom: 32px; background-color: #ffffff; border-radius: 12px; padding: 20px;">
-      <div style="display: flex; gap: 0; overflow-x: auto;">
-        ${heatmapHtml}
-      </div>
+    <div style="margin-bottom: 32px; background-color: #ffffff; border-radius: 6px; padding: 20px;">
+      <table width="100%" cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          ${heatmapHtml}
+        </tr>
+      </table>
     </div>
   `;
 }
@@ -643,26 +686,28 @@ function buildSimplifiedLeaderboard(employees, CONFIG) {
         : '<span style="color: #94a3b8; font-size: 14px;">Chưa báo cáo</span>';
 
       leaderboardHtml += `
-        <div style="display: flex; align-items: center; padding: 12px 0;">
-          <div style="width: 40px; text-align: center; font-size: 16px;">
-            ${medal || currentRank}
-          </div>
-          <div style="flex: 1; margin-left: 12px;">
-            <div style="font-size: 14px; font-weight: 400; color: #22c55e;">${emp.name}</div>
-          </div>
-          <div style="text-align: right;">
-            <div style="display: flex; gap: 2px; justify-content: flex-end;">
-              ${starsDisplay}
-            </div>
-          </div>
-        </div>
+        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="padding: 12px 0;">
+          <tr>
+            <td style="width: 40px; text-align: center; font-size: 16px; vertical-align: middle;">
+              ${medal || currentRank}
+            </td>
+            <td style="padding-left: 12px; vertical-align: middle;">
+              <div style="font-size: 14px; font-weight: 400; color: #22c55e;">${emp.name}</div>
+            </td>
+            <td style="text-align: right; vertical-align: middle;">
+              <span style="white-space: nowrap;">
+                ${starsDisplay}
+              </span>
+            </td>
+          </tr>
+        </table>
       `;
       currentRank++;
     });
   });
 
   return `
-    <div style="margin-bottom: 16px; background-color: #ffffff; border-radius: 12px; padding: 16px;">
+    <div style="margin-bottom: 16px; background-color: #ffffff; border-radius: 6px; padding: 16px;">
       ${leaderboardHtml}
     </div>
   `;
