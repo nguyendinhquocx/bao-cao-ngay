@@ -229,7 +229,7 @@ function sendDailyReportSummary(customDate = null) {
     const dailySections = !isWeekend ? `
       <!-- Completed Section -->
       <div style="margin-bottom: 32px; background-color: #ffffff; border-radius: 12px; overflow: hidden;">
-        <div style="padding: 20px 24px 16px; ${isPerfectDay ? 'border-bottom: 1px solid #22c55e;' : 'border-bottom: 1px solid #000000;'}">
+        <div style="padding: 20px 24px 16px;">
           <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
             <h2 style="margin: 0; font-size: 18px; font-weight: 500; color: ${colors.sectionTitle}; display: flex; align-items: center;">
               ${isPerfectDay ? 'Tất cả đã báo cáo' : 'Đã báo cáo'}
@@ -246,7 +246,7 @@ function sendDailyReportSummary(customDate = null) {
 
       <!-- Pending Section -->
       ${!isPerfectDay ? `<div style="margin-bottom: 40px; background-color: #ffffff; border-radius: 12px; overflow: hidden;">
-        <div style="padding: 20px 24px 16px; border-bottom: 1px solid #dc3545;">
+        <div style="padding: 20px 24px 16px;">
           <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
             <h2 style="margin: 0; font-size: 18px; font-weight: 500; color: ${colors.pendingTitle};">
               Chưa báo cáo
