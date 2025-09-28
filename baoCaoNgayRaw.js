@@ -1,33 +1,49 @@
 /**
- * FINAL VERSION: Gửi email báo cáo tổng hợp ngày 
- * 
- * FIXED:
- * ✅ Weekly stars calculation - Tính đúng từ thứ 2 tuần hiện tại đến hôm nay
- * ✅ Remove fraction display - Bỏ hiển thị 1/2, 2/3... 
- * ✅ Accurate star colors - Màu sao chính xác theo performance thực tế
- * ✅ Custom date support - Có thể gửi báo cáo cho ngày bất kỳ
- * 
- * @version 2.2 Enhanced
- * @author Nguyen Dinh Quoc
- * @updated 2025-08-02
- * 
- * @param {string|Date} customDate - Ngày tùy chọn (format: 'YYYY-MM-DD' hoặc Date object). Nếu không truyền thì dùng ngày hiện tại
- * 
+ * RAW DATA VERSION: Gửi email báo cáo tổng hợp từ raw data trong sheet 'tick'
+ *
+ * FEATURES:
+ * ✅ Use raw transactional data từ sheet 'tick' thay vì processed data 'check bc'
+ * ✅ Flexible data querying với date ranges
+ * ✅ Weekly stars calculation từ raw data
+ * ✅ Custom date support
+ * ✅ Mobile responsive email template
+ * ✅ Medal system với HTML entities
+ *
+ * @version 3.0 Raw Data
+ * @author Nguyễn Đình Quốc
+ * @updated 2025-09-29
+ *
+ * @param {string|Date} customDate - Ngày tuỳ chọn (format: 'YYYY-MM-DD' hoặc Date object). Nếu không truyền thì dùng ngày hiện tại
+ *
  * USAGE:
- * sendDailyReportSummary() - Gửi báo cáo ngày hiện tại
- * sendDailyReportSummary('2025-07-15') - Gửi báo cáo ngày 15/7/2025
- * sendDailyReportSummary(new Date('2025-07-15')) - Gửi báo cáo ngày 15/7/2025
+ * sendDailyReportSummaryRaw() - Gửi báo cáo ngày hiện tại
+ * sendDailyReportSummaryRaw('2025-07-15') - Gửi báo cáo ngày 15/7/2025
+ * sendDailyReportSummaryRaw(new Date('2025-07-15')) - Gửi báo cáo ngày 15/7/2025
  */
-function sendDailyReportSummary(customDate = null) {
+function sendDailyReportSummaryRaw(customDate = null) {
   const CONFIG = {
-    sheetName: 'check bc',
+    sheetName: 'tick', // Changed to raw data sheet
 
     // Uncomment khi deploy production
     // emailTo: 'luan.tran@hoanmy.com, khanh.tran@hoanmy.com, hong.le@hoanmy.com, quynh.bui@hoanmy.com, thuy.pham@hoanmy.com, anh.ngo@hoanmy.com, truc.nguyen3@hoanmy.com, trang.nguyen9@hoanmy.com, tram.mai@hoanmy.com, vuong.duong@hoanmy.com, phi.tran@hoanmy.com, quoc.nguyen3@hoanmy.com',
     emailTo: 'quoc.nguyen3@hoanmy.com',
 
-    dateHeaderRanges: ['e3:n3', 'e17:n17', 'e30:o30'],
-    dataRanges: ['B4:n12', 'B18:n26', 'B31:o39'],
+    // Raw data column mapping
+    columns: {
+      employeeId: 'mã nhân viên',        // Column A
+      employeeName: 'tên nhân viên',     // Column B
+      year: 'năm',                       // Column C
+      quarter: 'quý',                    // Column D
+      month: 'tháng',                    // Column E
+      monthName: 'tên tháng',            // Column F
+      weekInYear: 'tuần trong năm',      // Column G
+      week: 'tuần',                      // Column H
+      dayName: 'tên ngày',               // Column I
+      day: 'ngày',                       // Column J
+      date: 'date',                      // Column K
+      dayOfWeek: 'thứ',                  // Column L
+      check: 'check'                     // Column M
+    },
 
     // ICON mặc định (đen/xám)
     starIconDefault: 'https://cdn-icons-png.flaticon.com/128/2956/2956792.png',
@@ -64,7 +80,7 @@ function sendDailyReportSummary(customDate = null) {
     const isWeekend = targetDate.getDay() === 0; // Chủ nhật
     const isCustomDate = customDate !== null;
 
-    // Định dạng ngày chi tiết với thứ
+    // Định dạng ngày chi tiết
     const dayNames = ['Chủ nhật', 'Thứ hai', 'Thứ ba', 'Thứ tư', 'Thứ năm', 'Thứ sáu', 'Thứ bảy'];
     const dayOfWeek = dayNames[targetDate.getDay()];
     const detailedDate = `${dayOfWeek}, ngày ${targetDate.getDate()} tháng ${targetDate.getMonth() + 1} năm ${targetDate.getFullYear()}`;
@@ -74,57 +90,20 @@ function sendDailyReportSummary(customDate = null) {
       Logger.log(`📅 Detailed date: ${detailedDate}`);
     }
 
-    // Tìm vị trí cột ngày hôm nay trong các vùng header
-    let dateColumnIndex = null, dataRange = null, values = null;
-    for (let i = 0; i < CONFIG.dateHeaderRanges.length; i++) {
-      try {
-        const headerRange = sheet.getRange(CONFIG.dateHeaderRanges[i]);
-        const headerValues = headerRange.getValues()[0];
-        for (let j = 0; j < headerValues.length; j++) {
-          const cell = headerValues[j];
-          if (cell instanceof Date) {
-            const dateStr = Utilities.formatDate(cell, ss.getSpreadsheetTimeZone(), "M/d/yyyy");
-            if (dateStr === targetDateStr) {
-              dateColumnIndex = headerRange.getColumn() + j;
-              dataRange = sheet.getRange(CONFIG.dataRanges[i]);
-              values = dataRange.getValues();
-              break;
-            }
-          }
-        }
-        if (dateColumnIndex !== null) break;
-      } catch (error) {
-        Logger.log(`⚠️ Lỗi khi đọc range ${CONFIG.dateHeaderRanges[i]}: ${error.message}`);
-        continue;
-      }
-    }
+    // Load va parse raw data tu sheet
+    const rawData = loadRawDataFromSheet(sheet, CONFIG);
 
-    if (!values) {
-      Logger.log(`❌ Không tìm thấy cột ngày ${targetDateStr} trong bất kỳ vùng tiêu đề nào.`);
-      return;
-    }
-
-    // Lấy danh sách đã báo cáo và chưa báo cáo
-    let reported = [], notReported = [];
-    for (let row of values) {
-      const maNV = row[0];
-      const tenNV = row[2];
-      const reportMark = row[dateColumnIndex - dataRange.getColumn()];
-      if (maNV && tenNV) {
-        if (reportMark === 'X') {
-          reported.push(tenNV);
-        } else {
-          notReported.push(tenNV);
-        }
-      }
-    }
+    // Get employees who reported on target date
+    const targetReports = getEmployeeReportsForDate(rawData, targetDate, ss);
+    const reported = targetReports.reported;
+    const notReported = targetReports.notReported;
 
     // Kiểm tra perfect day và tính totals
     const totalEmployees = reported.length + notReported.length;
     const isPerfectDay = notReported.length === 0 && reported.length > 0;
     const subject = isWeekend ?
       `HMSG | P.KD - THỐNG KÊ TUẦN` :
-      `HMSG | P.KD - TỔNG HỢP BÁO CÁO NGÀY ${targetDateStr}${isCustomDate ? ' ' : ''}`;
+      `HMSG | P.KD - TỔNG HỢP BÁO CÁO NGÀY ${targetDateStr}${isCustomDate ? ' ⭐' : ''}`;
 
     // Chọn icons theo trạng thái
     const calendarIcon = isPerfectDay ? CONFIG.calendarIconPerfect : CONFIG.calendarIconDefault;
@@ -158,7 +137,7 @@ function sendDailyReportSummary(customDate = null) {
     // Nếu là Chủ nhật, tạo Weekly Performance Dashboard
     let weeklyDashboard = '';
     if (isWeekend) {
-      weeklyDashboard = buildWeeklyDashboard(sheet, ss, CONFIG, colors, targetDate);
+      weeklyDashboard = buildWeeklyDashboardRaw(rawData, CONFIG, colors, targetDate, ss);
     }
 
     // Smart Badge Function
@@ -178,7 +157,7 @@ function sendDailyReportSummary(customDate = null) {
       if (reported.length > 0) {
         const reportedWithStars = reported.map(name => ({
           name,
-          stars: getWeeklyStars(sheet, name, ss, CONFIG, targetDate)
+          stars: getWeeklyStarsRaw(rawData, name, CONFIG, targetDate, ss)
         }));
         reportedWithStars.sort((a, b) => b.stars - a.stars);
 
@@ -209,7 +188,7 @@ function sendDailyReportSummary(customDate = null) {
       if (notReported.length > 0) {
         const notReportedWithStars = notReported.map(name => ({
           name,
-          stars: getWeeklyStars(sheet, name, ss, CONFIG, targetDate)
+          stars: getWeeklyStarsRaw(rawData, name, CONFIG, targetDate, ss)
         }));
         notReportedWithStars.sort((a, b) => b.stars - a.stars);
 
@@ -293,7 +272,7 @@ function sendDailyReportSummary(customDate = null) {
       <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>${isWeekend ? 'Thống kê tuần' : 'Báo cáo ngày'} ${targetDateStr}${isCustomDate ? ' ' : ''}</title>
+        <title>${isWeekend ? 'Thống kê tuần' : 'Báo cáo ngày'} ${targetDateStr}${isCustomDate ? ' ⭐' : ''}</title>
         <!--[if mso]>
         <style type="text/css">
           table { border-collapse: collapse; }
@@ -302,7 +281,7 @@ function sendDailyReportSummary(customDate = null) {
         <![endif]-->
       </head>
       <body style="margin: 0; padding: 0; background-color: #ffffff; font-family: Arial, sans-serif;">
-        
+
         <!-- Outer Container for Outlook Desktop -->
         <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #ffffff;">
           <tr>
@@ -311,11 +290,11 @@ function sendDailyReportSummary(customDate = null) {
               <table width="600" cellpadding="0" cellspacing="0" border="0" style="max-width: 600px; margin: 0 auto;" class="container">
                 <tr>
                   <td style="padding: 20px;">
-          
+
           <!-- Header -->
           <div style="text-align: center; margin-bottom: 48px;">
             <h1 style="margin: 0; font-size: 28px; font-weight: 300; color: ${colors.headerTitle}; letter-spacing: -0.5px;">
-              ${isWeekend ? 'Thống kê tuần' : `Báo cáo tổng hợp ${isPerfectDay ? '' : ''}`}
+              ${isWeekend ? 'Thống kê tuần' : `Báo cáo tổng hợp ${isPerfectDay ? '⭐' : ''}`}
             </h1>
             <p style="margin: 8px 0 0; font-size: 16px; font-weight: 400; color: ${colors.headerSubtitle};">
               Phòng Kinh Doanh
@@ -332,7 +311,7 @@ function sendDailyReportSummary(customDate = null) {
           <!-- Weekly Dashboard (chỉ Chủ nhật) -->
           ${weeklyDashboard}
 
-          <!-- Daily Sections (Thứ 2-7) -->
+          <!-- Daily Sections (Thu 2-7) -->
           ${dailySections}
 
           <!-- Footer -->
@@ -348,7 +327,7 @@ function sendDailyReportSummary(customDate = null) {
             </td>
           </tr>
         </table>
-        
+
       </body>
       </html>
     `;
@@ -360,7 +339,7 @@ function sendDailyReportSummary(customDate = null) {
       htmlBody: htmlBody
     });
 
-    Logger.log(`✅ Email báo cáo ${isWeekend ? 'tuần' : 'ngày'} đã được gửi thành công`);
+    Logger.log(`✅ Email báo cáo ${isWeekend ? 'tuần' : 'ngày'} đã được gửi thành công (Raw Data Version)`);
 
   } catch (error) {
     Logger.log(`❌ Lỗi khi gửi email báo cáo: ${error.message}`);
@@ -369,78 +348,93 @@ function sendDailyReportSummary(customDate = null) {
 }
 
 /**
- * Parse target date từ input của user
- * @param {string|Date|null} customDate - Ngày tùy chọn
- * @returns {Date} - Date object đã được parse
+ * Load raw data từ sheet 'tick' và parse thành array objects
  */
-function parseTargetDate(customDate) {
-  if (!customDate) {
-    return new Date(); // Ngày hiện tại
-  }
-
+function loadRawDataFromSheet(sheet, CONFIG) {
   try {
-    if (customDate instanceof Date) {
-      return new Date(customDate);
+    const dataRange = sheet.getDataRange();
+    const values = dataRange.getValues();
+
+    if (values.length === 0) {
+      Logger.log(`❌ Sheet '${CONFIG.sheetName}' trống`);
+      return [];
     }
 
-    if (typeof customDate === 'string') {
-      // Support các format: 'YYYY-MM-DD', 'MM/DD/YYYY', 'DD/MM/YYYY'
-      let parsedDate;
+    // First row is headers
+    const headers = values[0];
+    const data = [];
 
-      if (customDate.includes('-')) {
-        // Format: YYYY-MM-DD
-        parsedDate = new Date(customDate);
-      } else if (customDate.includes('/')) {
-        // Format: MM/DD/YYYY hoặc DD/MM/YYYY
-        parsedDate = new Date(customDate);
-      } else {
-        throw new Error('Invalid date format');
-      }
+    // Parse each row into object
+    for (let i = 1; i < values.length; i++) {
+      const row = values[i];
+      const record = {};
 
-      if (isNaN(parsedDate.getTime())) {
-        throw new Error('Invalid date');
-      }
+      headers.forEach((header, index) => {
+        record[header] = row[index];
+      });
 
-      return parsedDate;
+      data.push(record);
     }
 
-    throw new Error('Unsupported date type');
+    if (CONFIG.debugMode) {
+      Logger.log(`📊 Loaded ${data.length} records from raw data`);
+      Logger.log(`📋 Sample record:`, JSON.stringify(data[0], null, 2));
+    }
+
+    return data;
   } catch (error) {
-    Logger.log(`⚠️ Lỗi parse custom date '${customDate}': ${error.message}. Sử dụng ngày hiện tại.`);
-    return new Date();
+    Logger.log(`❌ Lỗi khi load raw data: ${error.message}`);
+    return [];
   }
 }
 
 /**
- * FIXED: Gửi email với retry mechanism
+ * Get employee reports for specific date from raw data
  */
-function sendEmailWithRetry(emailConfig, maxRetries = 3) {
-  for (let i = 0; i < maxRetries; i++) {
-    try {
-      GmailApp.sendEmail(
-        emailConfig.to,
-        emailConfig.subject,
-        '', // body text rỗng, vì dùng htmlBody
-        {
-          htmlBody: emailConfig.htmlBody,
-          name: "BAO CAO NGAY" // Đặt tên ngầu vào đây
+function getEmployeeReportsForDate(rawData, targetDate, ss) {
+  try {
+    const targetDateStr = Utilities.formatDate(targetDate, ss.getSpreadsheetTimeZone(), "M/d/yyyy");
+
+    // Get all unique employees
+    const allEmployees = [...new Set(rawData.map(record => record['tên nhân viên']))].filter(Boolean);
+
+    // Find who reported on target date
+    const reportedEmployees = rawData
+      .filter(record => {
+        const recordDate = record['date'];
+        const recordCheck = record['check'];
+
+        let recordDateStr = '';
+        if (recordDate instanceof Date) {
+          recordDateStr = Utilities.formatDate(recordDate, ss.getSpreadsheetTimeZone(), "M/d/yyyy");
+        } else if (typeof recordDate === 'string') {
+          // Try to parse string date
+          const parsedDate = new Date(recordDate);
+          if (!isNaN(parsedDate.getTime())) {
+            recordDateStr = Utilities.formatDate(parsedDate, ss.getSpreadsheetTimeZone(), "M/d/yyyy");
+          }
         }
-      );
-      Logger.log(`✅ Email sent successfully on attempt ${i + 1}`);
-      return true;
-    } catch (error) {
-      Logger.log(`❌ Email attempt ${i + 1} failed: ${error.message}`);
-      if (i === maxRetries - 1) throw error;
-      Utilities.sleep(1000 * (i + 1)); // Exponential backoff
-    }
+
+        return recordDateStr === targetDateStr &&
+               (recordCheck === 'TRUE' || recordCheck === true || recordCheck === 'X');
+      })
+      .map(record => record['tên nhân viên'])
+      .filter(Boolean);
+
+    const reported = [...new Set(reportedEmployees)];
+    const notReported = allEmployees.filter(name => !reported.includes(name));
+
+    return { reported, notReported };
+  } catch (error) {
+    Logger.log(`❌ Lỗi khi get employee reports: ${error.message}`);
+    return { reported: [], notReported: [] };
   }
-  return false;
 }
 
 /**
- * FINAL FIXED: Weekly Stars Calculation - Tính đúng từ thứ 2 tuần hiện tại đến hôm nay
+ * Calculate weekly stars from raw data
  */
-function getWeeklyStars(sheet, employeeName, ss, CONFIG, currentDate = new Date()) {
+function getWeeklyStarsRaw(rawData, employeeName, CONFIG, currentDate, ss) {
   try {
     const currentDayOfWeek = currentDate.getDay(); // 0=CN, 1=T2, 2=T3, 3=T4, 4=T5, 5=T6, 6=T7
 
@@ -471,9 +465,9 @@ function getWeeklyStars(sheet, employeeName, ss, CONFIG, currentDate = new Date(
 
     if (CONFIG.debugMode) {
       const dayNames = ['Chủ nhật', 'Thứ hai', 'Thứ ba', 'Thứ tư', 'Thứ năm', 'Thứ sáu', 'Thứ bảy'];
-      Logger.log(`🔍 ${employeeName}: Hôm nay là ${dayNames[currentDayOfWeek]} (${currentDayOfWeek})`);
-      Logger.log(`📅 Thứ 2 tuần này: ${Utilities.formatDate(mondayThisWeek, ss.getSpreadsheetTimeZone(), "dd/MM/yyyy")}`);
-      Logger.log(`📊 Kiểm tra ${daysToCheck} ngày từ thứ 2 đến hôm nay`);
+      Logger.log(`🔍 RAW: ${employeeName}: Hôm nay là ${dayNames[currentDayOfWeek]} (${currentDayOfWeek})`);
+      Logger.log(`📅 RAW: Thứ 2 tuần này: ${Utilities.formatDate(mondayThisWeek, ss.getSpreadsheetTimeZone(), "dd/MM/yyyy")}`);
+      Logger.log(`📊 RAW: Kiểm tra ${daysToCheck} ngày từ thứ 2 đến hôm nay`);
     }
 
     // Duyệt từng ngày từ thứ 2 tuần này đến hôm nay
@@ -483,78 +477,53 @@ function getWeeklyStars(sheet, employeeName, ss, CONFIG, currentDate = new Date(
       const checkDateStr = Utilities.formatDate(checkDate, ss.getSpreadsheetTimeZone(), "M/d/yyyy");
 
       if (CONFIG.debugMode) {
-        Logger.log(`📋 Checking ngày ${checkDateStr} cho ${employeeName}`);
+        Logger.log(`📋 RAW: Checking ngày ${checkDateStr} cho ${employeeName}`);
       }
 
-      // Tìm trong tất cả ranges
-      let foundReport = false;
-      for (let i = 0; i < CONFIG.dateHeaderRanges.length && !foundReport; i++) {
-        try {
-          const headerRange = sheet.getRange(CONFIG.dateHeaderRanges[i]);
-          const headerValues = headerRange.getValues()[0];
+      // Search in raw data
+      const hasReport = rawData.some(record => {
+        const recordName = record['tên nhân viên'];
+        const recordDate = record['date'];
+        const recordCheck = record['check'];
 
-          for (let j = 0; j < headerValues.length; j++) {
-            const cell = headerValues[j];
-            if (cell instanceof Date) {
-              const dateStr = Utilities.formatDate(cell, ss.getSpreadsheetTimeZone(), "M/d/yyyy");
-              if (dateStr === checkDateStr) {
-                const dateColumnIndex = headerRange.getColumn() + j;
-                const dataRange = sheet.getRange(CONFIG.dataRanges[i]);
-                const values = dataRange.getValues();
-
-                for (let row of values) {
-                  const tenNV = row[2];
-                  const reportMark = row[dateColumnIndex - dataRange.getColumn()];
-
-                  if (tenNV === employeeName && reportMark === 'X') {
-                    stars++;
-                    foundReport = true;
-                    if (CONFIG.debugMode) {
-                      Logger.log(`⭐ ${employeeName} có báo cáo ngày ${checkDateStr} -> ${stars} sao`);
-                    }
-                    break;
-                  }
-                }
-                break;
-              }
-            }
+        let recordDateStr = '';
+        if (recordDate instanceof Date) {
+          recordDateStr = Utilities.formatDate(recordDate, ss.getSpreadsheetTimeZone(), "M/d/yyyy");
+        } else if (typeof recordDate === 'string') {
+          const parsedDate = new Date(recordDate);
+          if (!isNaN(parsedDate.getTime())) {
+            recordDateStr = Utilities.formatDate(parsedDate, ss.getSpreadsheetTimeZone(), "M/d/yyyy");
           }
-        } catch (error) {
-          Logger.log(`⚠️ Lỗi khi đếm sao cho ${employeeName} ngày ${checkDateStr}: ${error.message}`);
-          continue;
+        }
+
+        return recordName === employeeName &&
+               recordDateStr === checkDateStr &&
+               (recordCheck === 'TRUE' || recordCheck === true || recordCheck === 'X');
+      });
+
+      if (hasReport) {
+        stars++;
+        if (CONFIG.debugMode) {
+          Logger.log(`⭐ RAW: ${employeeName} có báo cáo ngày ${checkDateStr} -> ${stars} sao`);
         }
       }
     }
 
     if (CONFIG.debugMode) {
-      Logger.log(`🌟 FINAL: ${employeeName} có ${stars}/${daysToCheck} sao`);
+      Logger.log(`🌟 RAW FINAL: ${employeeName} có ${stars}/${daysToCheck} sao`);
     }
 
     return stars;
   } catch (error) {
-    Logger.log(`❌ Lỗi khi lấy weekly stars cho ${employeeName}: ${error.message}`);
+    Logger.log(`❌ Lỗi khi lay weekly stars raw cho ${employeeName}: ${error.message}`);
     return 0;
   }
 }
 
 /**
- * SIMPLIFIED: Star Color Function - Chỉ dựa vào số sao tuyệt đối
+ * Build Weekly Dashboard từ raw data
  */
-function getStarColor(starCount) {
-  // Sử dụng thang màu đơn giản theo số sao
-  if (starCount >= 6) return '#22c55e';       // 6 sao - Xanh đậm hoàn hảo
-  if (starCount >= 5) return '#84cc16';       // 5 sao - Xanh lime xuất sắc  
-  if (starCount >= 4) return '#22c55e';       // 4 sao - Xanh tốt
-  if (starCount >= 3) return '#eab308';       // 3 sao - Vàng khá
-  if (starCount >= 2) return '#f97316';       // 2 sao - Cam trung bình
-  if (starCount >= 1) return '#94a3b8';       // 1 sao - Xám nhạt cần cải thiện
-  return '#d1d5db';                           // 0 sao - Xám nhạt chưa bắt đầu
-}
-
-/**
- * Xây dựng Weekly Performance Dashboard cho Chủ nhật
- */
-function buildWeeklyDashboard(sheet, ss, CONFIG, colors, targetDate = new Date()) {
+function buildWeeklyDashboardRaw(rawData, CONFIG, colors, targetDate, ss) {
   try {
     // FIXED: Proper Monday calculation for weekly dashboard
     const monday = new Date(targetDate);
@@ -572,19 +541,19 @@ function buildWeeklyDashboard(sheet, ss, CONFIG, colors, targetDate = new Date()
     monday.setDate(targetDate.getDate() + mondayOffset);
 
     if (CONFIG.debugMode) {
-      Logger.log(`📅 Weekly Dashboard - Target date: ${targetDate.toDateString()}`);
-      Logger.log(`📅 Calculated Monday: ${monday.toDateString()}`);
-      Logger.log(`📊 Day of week: ${currentDayOfWeek} (0=CN)`);
+      Logger.log(`📅 RAW Weekly Dashboard - Target date: ${targetDate.toDateString()}`);
+      Logger.log(`📅 RAW Calculated Monday: ${monday.toDateString()}`);
+      Logger.log(`📊 RAW Day of week: ${currentDayOfWeek} (0=CN)`);
     }
 
-    // Lấy tất cả nhân viên và performance tuần
-    const allEmployees = getAllEmployeesWeeklyData(sheet, ss, CONFIG, monday);
+    // Get all employees performance data
+    const allEmployees = getAllEmployeesWeeklyDataRaw(rawData, CONFIG, monday, ss);
 
     // Daily Performance Heatmap
-    const heatmap = buildMobileResponsiveHeatmap(allEmployees, monday, ss, CONFIG);
+    const heatmap = buildMobileResponsiveHeatmapRaw(allEmployees, monday, ss, CONFIG);
 
     // Individual Performance Dashboard
-    const leaderboard = buildSimplifiedLeaderboard(allEmployees, CONFIG);
+    const leaderboard = buildSimplifiedLeaderboardRaw(allEmployees, CONFIG);
 
     return `
       ${heatmap}
@@ -592,15 +561,99 @@ function buildWeeklyDashboard(sheet, ss, CONFIG, colors, targetDate = new Date()
       ${leaderboard}
     `;
   } catch (error) {
-    Logger.log(`❌ Lỗi khi tạo Weekly Dashboard: ${error.message}`);
-    return `<div style="color: #dc3545; text-align: center; padding: 20px;">Không thể tải thống kê tuần</div>`;
+    Logger.log(`❌ Lỗi khi tao Weekly Dashboard Raw: ${error.message}`);
+    return `<div style="color: #dc3545; text-align: center; padding: 20px;">Khong the tai thong ke tuan</div>`;
   }
 }
 
 /**
- * Mobile Responsive Heatmap
+ * Get all employees weekly data from raw data
  */
-function buildMobileResponsiveHeatmap(employees, monday, ss, CONFIG) {
+function getAllEmployeesWeeklyDataRaw(rawData, CONFIG, monday, ss) {
+  const employees = [];
+
+  try {
+    // Get all unique employees
+    const allEmployeeNames = [...new Set(rawData.map(record => record['tên nhân viên']))].filter(Boolean);
+
+    allEmployeeNames.forEach(employeeName => {
+      const weeklyData = getEmployeeWeeklyPerformanceRaw(rawData, employeeName, CONFIG, monday, ss);
+      employees.push({
+        name: employeeName,
+        id: '', // Raw data may not have consistent IDs
+        dailyReports: weeklyData.dailyReports,
+        totalReports: weeklyData.totalReports,
+        completionRate: weeklyData.completionRate,
+        streak: weeklyData.streak,
+        trend: weeklyData.trend
+      });
+    });
+  } catch (error) {
+    Logger.log(`❌ Lỗi khi lay du lieu nhan vien raw: ${error.message}`);
+  }
+
+  return employees;
+}
+
+/**
+ * Get employee weekly performance from raw data
+ */
+function getEmployeeWeeklyPerformanceRaw(rawData, employeeName, CONFIG, monday, ss) {
+  const dailyReports = [];
+  let totalReports = 0;
+
+  try {
+    for (let dayOffset = 0; dayOffset < 6; dayOffset++) {
+      const checkDate = new Date(monday);
+      checkDate.setDate(monday.getDate() + dayOffset);
+      const checkDateStr = Utilities.formatDate(checkDate, ss.getSpreadsheetTimeZone(), "M/d/yyyy");
+
+      const hasReport = rawData.some(record => {
+        const recordName = record['tên nhân viên'];
+        const recordDate = record['date'];
+        const recordCheck = record['check'];
+
+        let recordDateStr = '';
+        if (recordDate instanceof Date) {
+          recordDateStr = Utilities.formatDate(recordDate, ss.getSpreadsheetTimeZone(), "M/d/yyyy");
+        } else if (typeof recordDate === 'string') {
+          const parsedDate = new Date(recordDate);
+          if (!isNaN(parsedDate.getTime())) {
+            recordDateStr = Utilities.formatDate(parsedDate, ss.getSpreadsheetTimeZone(), "M/d/yyyy");
+          }
+        }
+
+        return recordName === employeeName &&
+               recordDateStr === checkDateStr &&
+               (recordCheck === 'TRUE' || recordCheck === true || recordCheck === 'X');
+      });
+
+      dailyReports.push(hasReport);
+      if (hasReport) {
+        totalReports++;
+      }
+    }
+  } catch (error) {
+    Logger.log(`❌ Lỗi khi lay performance raw cua ${employeeName}: ${error.message}`);
+  }
+
+  const completionRate = totalReports / 6;
+  const streak = calculateStreak(dailyReports);
+  const trend = calculateTrend(dailyReports);
+
+  return {
+    dailyReports,
+    totalReports,
+    completionRate,
+    streak,
+    trend
+  };
+}
+
+/**
+ * Build heatmap from raw data
+ */
+function buildMobileResponsiveHeatmapRaw(employees, monday, ss, CONFIG) {
   const dayNames = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
   let heatmapHtml = '';
 
@@ -625,7 +678,7 @@ function buildMobileResponsiveHeatmap(employees, monday, ss, CONFIG) {
     let displayText = '';
 
     if (dayRate === 0) {
-      // Ngày nghỉ (0%) -> hiển thị 'x'
+      // Ngay nghi (0%) -> hien thi 'x'
       boxStyle = 'background-color: #ffffff; color: #1a1a1a;';
       textColor = '#1a1a1a';
       displayText = 'x';
@@ -663,9 +716,9 @@ function buildMobileResponsiveHeatmap(employees, monday, ss, CONFIG) {
 }
 
 /**
- * Simplified Leaderboard
+ * Build leaderboard from raw data
  */
-function buildSimplifiedLeaderboard(employees, CONFIG) {
+function buildSimplifiedLeaderboardRaw(employees, CONFIG) {
   // Remove duplicates by name
   const uniqueEmployees = [];
   const employeeMap = new Map();
@@ -716,7 +769,7 @@ function buildSimplifiedLeaderboard(employees, CONFIG) {
       const starColor = getStarColor(emp.totalReports);
       const starsDisplay = emp.totalReports > 0
         ? `<span style="color: ${starColor}; font-size: 16px;">★</span>`.repeat(emp.totalReports)
-        : '<span style="color: #94a3b8; font-size: 14px;">Chưa báo cáo</span>';
+        : '<span style="color: #94a3b8; font-size: 14px;">Chua bao cao</span>';
 
       // Display medal or rank number
       const rankDisplay = medal || currentRank;
@@ -749,113 +802,91 @@ function buildSimplifiedLeaderboard(employees, CONFIG) {
   `;
 }
 
+// =====================
+// REUSE UTILITY FUNCTIONS FROM ORIGINAL VERSION
+// =====================
+
 /**
- * Lấy dữ liệu hiệu suất tuần của tất cả nhân viên
+ * Parse target date tu input cua user
+ * @param {string|Date|null} customDate - Ngay tuy chon
+ * @returns {Date} - Date object da duoc parse
  */
-function getAllEmployeesWeeklyData(sheet, ss, CONFIG, monday) {
-  const employees = [];
-
-  try {
-    for (let i = 0; i < CONFIG.dataRanges.length; i++) {
-      try {
-        const dataRange = sheet.getRange(CONFIG.dataRanges[i]);
-        const values = dataRange.getValues();
-
-        for (let row of values) {
-          const maNV = row[0];
-          const tenNV = row[2];
-          if (maNV && tenNV) {
-            const weeklyData = getEmployeeWeeklyPerformance(sheet, tenNV, ss, CONFIG, monday);
-            employees.push({
-              name: tenNV,
-              id: maNV,
-              dailyReports: weeklyData.dailyReports,
-              totalReports: weeklyData.totalReports,
-              completionRate: weeklyData.completionRate,
-              streak: weeklyData.streak,
-              trend: weeklyData.trend
-            });
-          }
-        }
-      } catch (error) {
-        Logger.log(`⚠️ Lỗi khi đọc data range ${CONFIG.dataRanges[i]}: ${error.message}`);
-        continue;
-      }
-    }
-  } catch (error) {
-    Logger.log(`❌ Lỗi khi lấy dữ liệu nhân viên: ${error.message}`);
+function parseTargetDate(customDate) {
+  if (!customDate) {
+    return new Date(); // Ngay hien tai
   }
 
-  return employees;
+  try {
+    if (customDate instanceof Date) {
+      return new Date(customDate);
+    }
+
+    if (typeof customDate === 'string') {
+      // Support cac format: 'YYYY-MM-DD', 'MM/DD/YYYY', 'DD/MM/YYYY'
+      let parsedDate;
+
+      if (customDate.includes('-')) {
+        // Format: YYYY-MM-DD
+        parsedDate = new Date(customDate);
+      } else if (customDate.includes('/')) {
+        // Format: MM/DD/YYYY hoac DD/MM/YYYY
+        parsedDate = new Date(customDate);
+      } else {
+        throw new Error('Invalid date format');
+      }
+
+      if (isNaN(parsedDate.getTime())) {
+        throw new Error('Invalid date');
+      }
+
+      return parsedDate;
+    }
+
+    throw new Error('Unsupported date type');
+  } catch (error) {
+    Logger.log(`⚠️ Loi parse custom date '${customDate}': ${error.message}. Su dung ngay hien tai.`);
+    return new Date();
+  }
 }
 
 /**
- * Lấy performance tuần của một nhân viên cụ thể
+ * FIXED: Gui email voi retry mechanism
  */
-function getEmployeeWeeklyPerformance(sheet, employeeName, ss, CONFIG, monday) {
-  const dailyReports = [];
-  let totalReports = 0;
-
-  try {
-    for (let dayOffset = 0; dayOffset < 6; dayOffset++) {
-      const checkDate = new Date(monday);
-      checkDate.setDate(monday.getDate() + dayOffset);
-      const checkDateStr = Utilities.formatDate(checkDate, ss.getSpreadsheetTimeZone(), "M/d/yyyy");
-
-      let reported = false;
-
-      for (let i = 0; i < CONFIG.dateHeaderRanges.length; i++) {
-        try {
-          const headerRange = sheet.getRange(CONFIG.dateHeaderRanges[i]);
-          const headerValues = headerRange.getValues()[0];
-
-          for (let j = 0; j < headerValues.length; j++) {
-            const cell = headerValues[j];
-            if (cell instanceof Date) {
-              const dateStr = Utilities.formatDate(cell, ss.getSpreadsheetTimeZone(), "M/d/yyyy");
-              if (dateStr === checkDateStr) {
-                const dateColumnIndex = headerRange.getColumn() + j;
-                const dataRange = sheet.getRange(CONFIG.dataRanges[i]);
-                const values = dataRange.getValues();
-
-                for (let row of values) {
-                  const tenNV = row[2];
-                  const reportMark = row[dateColumnIndex - dataRange.getColumn()];
-
-                  if (tenNV === employeeName && reportMark === 'X') {
-                    reported = true;
-                    totalReports++;
-                    break;
-                  }
-                }
-                break;
-              }
-            }
-          }
-          if (reported) break;
-        } catch (error) {
-          Logger.log(`⚠️ Lỗi khi kiểm tra ngày ${checkDateStr} cho ${employeeName}: ${error.message}`);
-          continue;
+function sendEmailWithRetry(emailConfig, maxRetries = 3) {
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      GmailApp.sendEmail(
+        emailConfig.to,
+        emailConfig.subject,
+        '', // body text rong, vi dung htmlBody
+        {
+          htmlBody: emailConfig.htmlBody,
+          name: "BAO CAO NGAY RAW" // Dat ten ngau vao day
         }
-      }
-
-      dailyReports.push(reported);
+      );
+      Logger.log(`✅ Email sent successfully on attempt ${i + 1}`);
+      return true;
+    } catch (error) {
+      Logger.log(`❌ Email attempt ${i + 1} failed: ${error.message}`);
+      if (i === maxRetries - 1) throw error;
+      Utilities.sleep(1000 * (i + 1)); // Exponential backoff
     }
-  } catch (error) {
-    Logger.log(`❌ Lỗi khi lấy performance của ${employeeName}: ${error.message}`);
   }
+  return false;
+}
 
-  const completionRate = totalReports / 6;
-  const streak = calculateStreak(dailyReports);
-  const trend = calculateTrend(dailyReports);
-
-  return {
-    dailyReports,
-    totalReports,
-    completionRate,
-    streak,
-    trend
-  };
+/**
+ * SIMPLIFIED: Star Color Function - Chỉ dựa vào số sao tuyệt đối
+ */
+function getStarColor(starCount) {
+  // Sử dụng thang màu đơn giản theo số sao
+  if (starCount >= 6) return '#22c55e';       // 6 sao - Xanh dam hoan hao
+  if (starCount >= 5) return '#84cc16';       // 5 sao - Xanh lime xuat sac
+  if (starCount >= 4) return '#22c55e';       // 4 sao - Xanh tot
+  if (starCount >= 3) return '#eab308';       // 3 sao - Vang kha
+  if (starCount >= 2) return '#f97316';       // 2 sao - Cam trung binh
+  if (starCount >= 1) return '#94a3b8';       // 1 sao - Xam nhat can cai thien
+  return '#d1d5db';                           // 0 sao - Xam nhat chua bat dau
 }
 
 /**
@@ -882,100 +913,75 @@ function calculateTrend(dailyReports) {
   return 'stable';
 }
 
+// =====================
+// HELPER FUNCTIONS FOR RAW VERSION
+// =====================
+
 /**
- * HELPER FUNCTION: Gửi báo cáo cho ngày cụ thể (dễ sử dụng)
- * @param {string} dateString - Ngày theo format 'YYYY-MM-DD' (VD: '2025-07-15')
- * 
+ * HELPER FUNCTION: Gui bao cao cho ngay cu the (raw version)
+ * @param {string} dateString - Ngay theo format 'YYYY-MM-DD' (VD: '2025-07-15')
+ *
  * USAGE:
- * sendReportForDate('2025-07-15') - Gửi báo cáo ngày 15/7/2025
- * sendReportForDate('2025-06-30') - Gửi báo cáo ngày 30/6/2025
+ * sendReportForDateRaw('2025-07-15') - Gui bao cao ngay 15/7/2025
+ * sendReportForDateRaw('2025-06-30') - Gui bao cao ngay 30/6/2025
  */
-function sendReportForDate(dateString) {
-  Logger.log(`🎯 Gửi báo cáo cho ngày: ${dateString}`);
-  sendDailyReportSummary(dateString);
+function sendReportForDateRaw(dateString) {
+  Logger.log(`🎯 Gui bao cao RAW cho ngay: ${dateString}`);
+  sendDailyReportSummaryRaw(dateString);
 }
 
 /**
- * HELPER FUNCTION: Gửi báo cáo cho ngày hôm qua
+ * HELPER FUNCTION: Gui bao cao cho ngay hom qua (raw version)
  */
-function sendReportForYesterday() {
+function sendReportForYesterdayRaw() {
   const yesterday = new Date();
   yesterday.setDate(yesterday.getDate() - 1);
   const yesterdayStr = Utilities.formatDate(yesterday, SpreadsheetApp.getActiveSpreadsheet().getSpreadsheetTimeZone(), "yyyy-MM-dd");
-  Logger.log(`📅 Gửi báo cáo cho ngày hôm qua: ${yesterdayStr}`);
-  sendDailyReportSummary(yesterday);
+  Logger.log(`📅 Gui bao cao RAW cho ngay hom qua: ${yesterdayStr}`);
+  sendDailyReportSummaryRaw(yesterday);
 }
 
 /**
- * HELPER FUNCTION: Gửi báo cáo cho tuần trước (Chủ nhật)
+ * HELPER FUNCTION: Gui bao cao cho tuan truoc (Chu nhat) (raw version)
  */
-function sendReportForLastSunday() {
+function sendReportForLastSundayRaw() {
   const today = new Date();
   const lastSunday = new Date(today);
   const daysToLastSunday = today.getDay() === 0 ? 7 : today.getDay();
   lastSunday.setDate(today.getDate() - daysToLastSunday);
 
   const lastSundayStr = Utilities.formatDate(lastSunday, SpreadsheetApp.getActiveSpreadsheet().getSpreadsheetTimeZone(), "yyyy-MM-dd");
-  Logger.log(`📊 Gửi báo cáo tuần cho Chủ nhật trước: ${lastSundayStr}`);
-  sendDailyReportSummary(lastSunday);
+  Logger.log(`📊 Gui bao cao tuan RAW cho Chu nhat truoc: ${lastSundayStr}`);
+  sendDailyReportSummaryRaw(lastSunday);
 }
 
 /**
- * TEST FUNCTION - Chạy để verify logic mới
+ * TEST FUNCTION - Test raw data version
  */
-function testWeeklyStarsLogic() {
-  Logger.log('🧪 TESTING WEEKLY STARS LOGIC - 2025-07-01 (Thứ ba)');
+function testRawDataVersion() {
+  Logger.log('🧪 TESTING RAW DATA VERSION');
 
-  // Test case: Hôm nay là thứ 3 (1/7/2025)
-  const today = new Date('2025-07-01'); // Thứ ba
-  const currentDayOfWeek = today.getDay(); // 2
+  // Test loading raw data
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName('tick');
 
-  // Thứ 2 tuần này: 30/6/2025
-  const mondayOffset = -(currentDayOfWeek - 1); // -(2-1) = -1
-  const mondayThisWeek = new Date(today);
-  mondayThisWeek.setDate(today.getDate() + mondayOffset); // 1/7 + (-1) = 30/6
+  if (!sheet) {
+    Logger.log('❌ Sheet "tick" khong ton tai');
+    return;
+  }
 
-  // Số ngày cần check: từ T2 (30/6) đến T3 (1/7) = 2 ngày
-  const daysToCheck = currentDayOfWeek; // 2
+  const CONFIG = { debugMode: true };
+  const rawData = loadRawDataFromSheet(sheet, CONFIG);
 
-  Logger.log(`📅 Hôm nay: ${today.toDateString()} (Thứ ${currentDayOfWeek + 1})`);
-  Logger.log(`📅 Thứ 2 tuần này: ${mondayThisWeek.toDateString()}`);
-  Logger.log(`📊 Cần check: ${daysToCheck} ngày`);
+  Logger.log(`📊 Raw data sample:`, rawData.slice(0, 3));
 
-  // Giả lập: người đã báo cáo 30/6 và 1/7
-  const mockStars = 2; // 2 sao cho 2 ngày
-  Logger.log(`⭐ Kết quả: ${mockStars} sao cho ${daysToCheck} ngày`);
-  Logger.log(`🎨 Màu sao: ${getStarColor(mockStars)}`);
+  // Test date querying
+  const testDate = new Date('2025-01-01');
+  const reports = getEmployeeReportsForDate(rawData, testDate, ss);
 
-  Logger.log('✅ Logic đã đúng: Thứ ba có 2 sao (T2 + T3) với màu cam (#f97316)');
-}
+  Logger.log(`📅 Reports for ${testDate.toDateString()}:`);
+  Logger.log(`✅ Reported (${reports.reported.length}):`, reports.reported);
+  Logger.log(`❌ Not Reported (${reports.notReported.length}):`, reports.notReported);
 
-/**
- * TEST FUNCTION - Test custom date functionality
- */
-function testCustomDateFeature() {
-  Logger.log('🧪 TESTING CUSTOM DATE FEATURE');
-
-  // Test 1: Parse different date formats
-  Logger.log('📅 Test 1: Parse date formats');
-  const testDates = [
-    '2025-07-15',
-    '07/15/2025',
-    new Date('2025-07-15'),
-    null, // Should use current date
-    'invalid-date' // Should fallback to current date
-  ];
-
-  testDates.forEach((testDate, index) => {
-    const parsed = parseTargetDate(testDate);
-    Logger.log(`   ${index + 1}. Input: ${testDate} → Parsed: ${parsed.toDateString()}`);
-  });
-
-  // Test 2: Simulate sending report for specific date
-  Logger.log('📧 Test 2: Simulate custom date report (DRY RUN)');
-  Logger.log('   Để test thực tế, chạy: sendReportForDate("2025-07-15")');
-  Logger.log('   Hoặc: sendReportForYesterday()');
-  Logger.log('   Hoặc: sendReportForLastSunday()');
-
-  Logger.log('✅ Custom date feature tests completed');
+  Logger.log('✅ Raw data version test completed');
 }
