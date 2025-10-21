@@ -1,6 +1,18 @@
 /**
  * RAW DATA VERSION: Gửi email báo cáo tổng hợp từ raw data trong sheet 'tick'
  *
+ * SHEET STRUCTURE:
+ * Column A: ma nhan vien
+ * Column B: ten nhan vien
+ * Column C: date
+ * Column D: thu
+ * Column E: check
+ *
+ * EXCLUDED EMPLOYEES:
+ * - Cấu hình trong CONFIG.excludedEmployees bằng mã nhân viên
+ * - Nhân viên trong list sẽ KHÔNG xuất hiện trong email báo cáo
+ * - Data vẫn giữ nguyên trong sheet, chỉ filter khi tạo báo cáo
+ *
  * FEATURES:
  * ✅ Use raw transactional data từ sheet 'tick' thay vì processed data 'check bc'
  * ✅ Flexible data querying với date ranges
@@ -8,10 +20,11 @@
  * ✅ Custom date support
  * ✅ Mobile responsive email template
  * ✅ Medal system với HTML entities
+ * ✅ Excluded employees filter by employee ID
  *
- * @version 3.0 Raw Data
+ * @version 3.2 Excluded Employees Support
  * @author Nguyễn Đình Quốc
- * @updated 2025-09-29
+ * @updated 2025-01-21
  *
  * @param {string|Date} customDate - Ngày tuỳ chọn (format: 'YYYY-MM-DD' hoặc Date object). Nếu không truyền thì dùng ngày hiện tại
  *
@@ -19,30 +32,34 @@
  * sendDailyReportSummaryRaw() - Gửi báo cáo ngày hiện tại
  * sendDailyReportSummaryRaw('2025-07-15') - Gửi báo cáo ngày 15/7/2025
  * sendDailyReportSummaryRaw(new Date('2025-07-15')) - Gửi báo cáo ngày 15/7/2025
+ *
+ * EXCLUDE EMPLOYEES:
+ * 1. Mở file baoCaoNgayRaw.js
+ * 2. Tìm CONFIG.excludedEmployees (dòng ~40)
+ * 3. Thêm mã nhân viên vào array: ['004620', '005123', ...]
  */
 function sendDailyReportSummaryRaw(customDate = null) {
   const CONFIG = {
     sheetName: 'tick', // Changed to raw data sheet
 
     // Uncomment khi deploy production
-    // emailTo: 'luan.tran@hoanmy.com, khanh.tran@hoanmy.com, hong.le@hoanmy.com, quynh.bui@hoanmy.com, thuy.pham@hoanmy.com, anh.ngo@hoanmy.com, truc.nguyen3@hoanmy.com, trang.nguyen9@hoanmy.com, tram.mai@hoanmy.com, vuong.duong@hoanmy.com, phi.tran@hoanmy.com, quoc.nguyen3@hoanmy.com',
+    // emailTo: 'luan.tran@hoanmy.com, khanh.tran@hoanmy.com, hong.le@hoanmy.com, quynh.bui@hoanmy.com, thuy.pham@hoanmy.com, anh.ngo@hoanmy.com, truc.nguyen3@hoanmy.com, trang.nguyen9@hoanmy.com, tram.mai@hoanmy.com, vuong.duong@hoanmy.com, hoang.vo4@hoanmy.com, phi.tran@hoanmy.com, quoc.nguyen3@hoanmy.com',
     emailTo: 'quoc.nguyen3@hoanmy.com',
 
-    // Raw data column mapping
+    // EXCLUDED EMPLOYEES - Không tính vào báo cáo
+    // Thêm mã nhân viên vào array này để loại bỏ khỏi email (vẫn giữ data trong sheet)
+    excludedEmployees: [
+      '004620'  // Trần Thị Phương Phi - không tính vào báo cáo
+      // Thêm các mã nhân viên khác nếu cần, VD: '005123', '006456'
+    ],
+
+    // Raw data column mapping - Simplified structure
     columns: {
-      employeeId: 'mã nhân viên',        // Column A
-      employeeName: 'tên nhân viên',     // Column B
-      year: 'năm',                       // Column C
-      quarter: 'quý',                    // Column D
-      month: 'tháng',                    // Column E
-      monthName: 'tên tháng',            // Column F
-      weekInYear: 'tuần trong năm',      // Column G
-      week: 'tuần',                      // Column H
-      dayName: 'tên ngày',               // Column I
-      day: 'ngày',                       // Column J
-      date: 'date',                      // Column K
-      dayOfWeek: 'thứ',                  // Column L
-      check: 'check'                     // Column M
+      employeeId: 'ma nhan vien',        // Column A
+      employeeName: 'ten nhan vien',     // Column B
+      date: 'date',                      // Column C
+      dayOfWeek: 'thu',                  // Column D
+      check: 'check'                     // Column E
     },
 
     // ICON mặc định (đen/xám)
@@ -93,6 +110,9 @@ function sendDailyReportSummaryRaw(customDate = null) {
     // Load va parse raw data tu sheet
     const rawData = loadRawDataFromSheet(sheet, CONFIG);
 
+    // Build date index once for performance optimization
+    const dateIndex = buildDateIndexRaw(rawData, ss);
+
     // Get employees who reported on target date
     const targetReports = getEmployeeReportsForDate(rawData, targetDate, ss);
     const reported = targetReports.reported;
@@ -137,7 +157,7 @@ function sendDailyReportSummaryRaw(customDate = null) {
     // Nếu là Chủ nhật, tạo Weekly Performance Dashboard
     let weeklyDashboard = '';
     if (isWeekend) {
-      weeklyDashboard = buildWeeklyDashboardRaw(rawData, CONFIG, colors, targetDate, ss);
+      weeklyDashboard = buildWeeklyDashboardRaw(rawData, CONFIG, colors, targetDate, ss, dateIndex);
     }
 
     // Smart Badge Function
@@ -157,7 +177,7 @@ function sendDailyReportSummaryRaw(customDate = null) {
       if (reported.length > 0) {
         const reportedWithStars = reported.map(name => ({
           name,
-          stars: getWeeklyStarsRaw(rawData, name, CONFIG, targetDate, ss)
+          stars: getWeeklyStarsRaw(rawData, name, CONFIG, targetDate, ss, dateIndex)
         }));
         reportedWithStars.sort((a, b) => b.stars - a.stars);
 
@@ -188,7 +208,7 @@ function sendDailyReportSummaryRaw(customDate = null) {
       if (notReported.length > 0) {
         const notReportedWithStars = notReported.map(name => ({
           name,
-          stars: getWeeklyStarsRaw(rawData, name, CONFIG, targetDate, ss)
+          stars: getWeeklyStarsRaw(rawData, name, CONFIG, targetDate, ss, dateIndex)
         }));
         notReportedWithStars.sort((a, b) => b.stars - a.stars);
 
@@ -332,12 +352,32 @@ function sendDailyReportSummaryRaw(customDate = null) {
       </html>
     `;
 
-    // Gửi email với retry mechanism
-    sendEmailWithRetry({
-      to: CONFIG.emailTo,
-      subject: subject,
-      htmlBody: htmlBody
-    });
+    // DEBUG: Log email content instead of sending when debugging
+    if (CONFIG.debugMode) {
+      Logger.log(`📧 DEBUG - Email subject: ${subject}`);
+      Logger.log(`📧 DEBUG - Email to: ${CONFIG.emailTo}`);
+      Logger.log(`📧 DEBUG - Total employees: ${totalEmployees}`);
+      Logger.log(`📧 DEBUG - Reported: ${reported.length}, Not reported: ${notReported.length}`);
+      Logger.log(`📧 DEBUG - HTML Body length: ${htmlBody.length} characters`);
+
+      // Log first part of HTML to check content
+      Logger.log(`📧 DEBUG - HTML Preview (first 500 chars): ${htmlBody.substring(0, 500)}`);
+
+      // Log employee data
+      Logger.log(`📧 DEBUG - Reported employees:`, reported);
+      Logger.log(`📧 DEBUG - Not reported employees:`, notReported);
+    }
+
+    // Gửi email với retry mechanism (skip when debugging to avoid quota)
+    if (!CONFIG.debugMode) {
+      sendEmailWithRetry({
+        to: CONFIG.emailTo,
+        subject: subject,
+        htmlBody: htmlBody
+      });
+    } else {
+      Logger.log(`📧 DEBUG - Email sending skipped (debug mode active)`);
+    }
 
     Logger.log(`✅ Email báo cáo ${isWeekend ? 'tuần' : 'ngày'} đã được gửi thành công (Raw Data Version)`);
 
@@ -349,6 +389,7 @@ function sendDailyReportSummaryRaw(customDate = null) {
 
 /**
  * Load raw data từ sheet 'tick' và parse thành array objects
+ * Tự động filter excluded employees based on CONFIG.excludedEmployees
  */
 function loadRawDataFromSheet(sheet, CONFIG) {
   try {
@@ -364,7 +405,7 @@ function loadRawDataFromSheet(sheet, CONFIG) {
     const headers = values[0];
     const data = [];
 
-    // Parse each row into object
+    // Parse each row into object và filter excluded employees
     for (let i = 1; i < values.length; i++) {
       const row = values[i];
       const record = {};
@@ -373,11 +414,20 @@ function loadRawDataFromSheet(sheet, CONFIG) {
         record[header] = row[index];
       });
 
-      data.push(record);
+      // Filter excluded employees by employee ID
+      const employeeId = String(record['ma nhan vien'] || '').trim();
+      const isExcluded = CONFIG.excludedEmployees && CONFIG.excludedEmployees.includes(employeeId);
+
+      if (!isExcluded) {
+        data.push(record);
+      }
     }
 
     if (CONFIG.debugMode) {
-      Logger.log(`📊 Loaded ${data.length} records from raw data`);
+      Logger.log(`📊 Loaded ${data.length} records from raw data (after filtering excluded employees)`);
+      if (CONFIG.excludedEmployees && CONFIG.excludedEmployees.length > 0) {
+        Logger.log(`🚫 Excluded employee IDs: ${CONFIG.excludedEmployees.join(', ')}`);
+      }
       Logger.log(`📋 Sample record:`, JSON.stringify(data[0], null, 2));
     }
 
@@ -396,13 +446,16 @@ function getEmployeeReportsForDate(rawData, targetDate, ss) {
     const targetDateStr = Utilities.formatDate(targetDate, ss.getSpreadsheetTimeZone(), "M/d/yyyy");
 
     // Get all unique employees
-    const allEmployees = [...new Set(rawData.map(record => record['tên nhân viên']))].filter(Boolean);
+    const allEmployees = [...new Set(rawData.map(record => record['ten nhan vien']))].filter(Boolean);
 
-    // Find who reported on target date
+    // Find who reported on target date - OPTIMIZED VERSION
     const reportedEmployees = rawData
       .filter(record => {
         const recordDate = record['date'];
         const recordCheck = record['check'];
+        const recordName = record['ten nhan vien'];
+
+        if (!recordName) return false;
 
         let recordDateStr = '';
         if (recordDate instanceof Date) {
@@ -415,10 +468,12 @@ function getEmployeeReportsForDate(rawData, targetDate, ss) {
           }
         }
 
-        return recordDateStr === targetDateStr &&
-               (recordCheck === 'TRUE' || recordCheck === true || recordCheck === 'X');
+        const dateMatches = recordDateStr === targetDateStr;
+        const hasReport = (recordCheck === 'TRUE' || recordCheck === true || recordCheck === 'X' || recordCheck === 1);
+
+        return dateMatches && hasReport;
       })
-      .map(record => record['tên nhân viên'])
+      .map(record => record['ten nhan vien'])
       .filter(Boolean);
 
     const reported = [...new Set(reportedEmployees)];
@@ -432,10 +487,15 @@ function getEmployeeReportsForDate(rawData, targetDate, ss) {
 }
 
 /**
- * Calculate weekly stars from raw data
+ * OPTIMIZED: Calculate weekly stars from raw data with caching
  */
-function getWeeklyStarsRaw(rawData, employeeName, CONFIG, currentDate, ss) {
+function getWeeklyStarsRaw(rawData, employeeName, CONFIG, currentDate, ss, dateIndex = null) {
   try {
+    // Use cached date index if provided
+    if (!dateIndex) {
+      dateIndex = buildDateIndexRaw(rawData, ss);
+    }
+
     const currentDayOfWeek = currentDate.getDay(); // 0=CN, 1=T2, 2=T3, 3=T4, 4=T5, 5=T6, 6=T7
 
     // FIXED: Tìm thứ 2 của tuần hiện tại
@@ -463,54 +523,22 @@ function getWeeklyStarsRaw(rawData, employeeName, CONFIG, currentDate, ss) {
       daysToCheck = currentDayOfWeek;
     }
 
-    if (CONFIG.debugMode) {
-      const dayNames = ['Chủ nhật', 'Thứ hai', 'Thứ ba', 'Thứ tư', 'Thứ năm', 'Thứ sáu', 'Thứ bảy'];
-      Logger.log(`🔍 RAW: ${employeeName}: Hôm nay là ${dayNames[currentDayOfWeek]} (${currentDayOfWeek})`);
-      Logger.log(`📅 RAW: Thứ 2 tuần này: ${Utilities.formatDate(mondayThisWeek, ss.getSpreadsheetTimeZone(), "dd/MM/yyyy")}`);
-      Logger.log(`📊 RAW: Kiểm tra ${daysToCheck} ngày từ thứ 2 đến hôm nay`);
-    }
-
-    // Duyệt từng ngày từ thứ 2 tuần này đến hôm nay
+    // Duyệt từng ngày từ thứ 2 tuần này đến hôm nay - OPTIMIZED WITH INDEX
     for (let dayOffset = 0; dayOffset < daysToCheck; dayOffset++) {
       const checkDate = new Date(mondayThisWeek);
       checkDate.setDate(mondayThisWeek.getDate() + dayOffset);
       const checkDateStr = Utilities.formatDate(checkDate, ss.getSpreadsheetTimeZone(), "M/d/yyyy");
 
-      if (CONFIG.debugMode) {
-        Logger.log(`📋 RAW: Checking ngày ${checkDateStr} cho ${employeeName}`);
-      }
-
-      // Search in raw data
-      const hasReport = rawData.some(record => {
-        const recordName = record['tên nhân viên'];
-        const recordDate = record['date'];
-        const recordCheck = record['check'];
-
-        let recordDateStr = '';
-        if (recordDate instanceof Date) {
-          recordDateStr = Utilities.formatDate(recordDate, ss.getSpreadsheetTimeZone(), "M/d/yyyy");
-        } else if (typeof recordDate === 'string') {
-          const parsedDate = new Date(recordDate);
-          if (!isNaN(parsedDate.getTime())) {
-            recordDateStr = Utilities.formatDate(parsedDate, ss.getSpreadsheetTimeZone(), "M/d/yyyy");
-          }
-        }
-
-        return recordName === employeeName &&
-               recordDateStr === checkDateStr &&
-               (recordCheck === 'TRUE' || recordCheck === true || recordCheck === 'X');
-      });
+      // Use index for fast lookup
+      const dateRecords = dateIndex[checkDateStr] || [];
+      const hasReport = dateRecords.some(record =>
+        record['ten nhan vien'] === employeeName &&
+        (record['check'] === 'TRUE' || record['check'] === true || record['check'] === 'X')
+      );
 
       if (hasReport) {
         stars++;
-        if (CONFIG.debugMode) {
-          Logger.log(`⭐ RAW: ${employeeName} có báo cáo ngày ${checkDateStr} -> ${stars} sao`);
-        }
       }
-    }
-
-    if (CONFIG.debugMode) {
-      Logger.log(`🌟 RAW FINAL: ${employeeName} có ${stars}/${daysToCheck} sao`);
     }
 
     return stars;
@@ -521,9 +549,40 @@ function getWeeklyStarsRaw(rawData, employeeName, CONFIG, currentDate, ss) {
 }
 
 /**
+ * Build date index for fast lookups - O(n) preprocessing instead of O(n²) searches
+ */
+function buildDateIndexRaw(rawData, ss) {
+  const dateIndex = {};
+
+  rawData.forEach(record => {
+    const recordDate = record['date'];
+    if (!recordDate) return;
+
+    let dateStr = '';
+    if (recordDate instanceof Date) {
+      dateStr = Utilities.formatDate(recordDate, ss.getSpreadsheetTimeZone(), "M/d/yyyy");
+    } else if (typeof recordDate === 'string') {
+      const parsedDate = new Date(recordDate);
+      if (!isNaN(parsedDate.getTime())) {
+        dateStr = Utilities.formatDate(parsedDate, ss.getSpreadsheetTimeZone(), "M/d/yyyy");
+      }
+    }
+
+    if (dateStr) {
+      if (!dateIndex[dateStr]) {
+        dateIndex[dateStr] = [];
+      }
+      dateIndex[dateStr].push(record);
+    }
+  });
+
+  return dateIndex;
+}
+
+/**
  * Build Weekly Dashboard từ raw data
  */
-function buildWeeklyDashboardRaw(rawData, CONFIG, colors, targetDate, ss) {
+function buildWeeklyDashboardRaw(rawData, CONFIG, colors, targetDate, ss, dateIndex = null) {
   try {
     // FIXED: Proper Monday calculation for weekly dashboard
     const monday = new Date(targetDate);
@@ -547,7 +606,7 @@ function buildWeeklyDashboardRaw(rawData, CONFIG, colors, targetDate, ss) {
     }
 
     // Get all employees performance data
-    const allEmployees = getAllEmployeesWeeklyDataRaw(rawData, CONFIG, monday, ss);
+    const allEmployees = getAllEmployeesWeeklyDataRaw(rawData, CONFIG, monday, ss, dateIndex);
 
     // Daily Performance Heatmap
     const heatmap = buildMobileResponsiveHeatmapRaw(allEmployees, monday, ss, CONFIG);
@@ -569,15 +628,15 @@ function buildWeeklyDashboardRaw(rawData, CONFIG, colors, targetDate, ss) {
 /**
  * Get all employees weekly data from raw data
  */
-function getAllEmployeesWeeklyDataRaw(rawData, CONFIG, monday, ss) {
+function getAllEmployeesWeeklyDataRaw(rawData, CONFIG, monday, ss, dateIndex = null) {
   const employees = [];
 
   try {
     // Get all unique employees
-    const allEmployeeNames = [...new Set(rawData.map(record => record['tên nhân viên']))].filter(Boolean);
+    const allEmployeeNames = [...new Set(rawData.map(record => record['ten nhan vien']))].filter(Boolean);
 
     allEmployeeNames.forEach(employeeName => {
-      const weeklyData = getEmployeeWeeklyPerformanceRaw(rawData, employeeName, CONFIG, monday, ss);
+      const weeklyData = getEmployeeWeeklyPerformanceRaw(rawData, employeeName, CONFIG, monday, ss, dateIndex);
       employees.push({
         name: employeeName,
         id: '', // Raw data may not have consistent IDs
@@ -598,7 +657,7 @@ function getAllEmployeesWeeklyDataRaw(rawData, CONFIG, monday, ss) {
 /**
  * Get employee weekly performance from raw data
  */
-function getEmployeeWeeklyPerformanceRaw(rawData, employeeName, CONFIG, monday, ss) {
+function getEmployeeWeeklyPerformanceRaw(rawData, employeeName, CONFIG, monday, ss, dateIndex = null) {
   const dailyReports = [];
   let totalReports = 0;
 
@@ -608,25 +667,36 @@ function getEmployeeWeeklyPerformanceRaw(rawData, employeeName, CONFIG, monday, 
       checkDate.setDate(monday.getDate() + dayOffset);
       const checkDateStr = Utilities.formatDate(checkDate, ss.getSpreadsheetTimeZone(), "M/d/yyyy");
 
-      const hasReport = rawData.some(record => {
-        const recordName = record['tên nhân viên'];
-        const recordDate = record['date'];
-        const recordCheck = record['check'];
+      // Use index for fast lookup if available
+      let hasReport = false;
+      if (dateIndex) {
+        const dateRecords = dateIndex[checkDateStr] || [];
+        hasReport = dateRecords.some(record =>
+          record['ten nhan vien'] === employeeName &&
+          (record['check'] === 'TRUE' || record['check'] === true || record['check'] === 'X')
+        );
+      } else {
+        // Fallback to original method
+        hasReport = rawData.some(record => {
+          const recordName = record['ten nhan vien'];
+          const recordDate = record['date'];
+          const recordCheck = record['check'];
 
-        let recordDateStr = '';
-        if (recordDate instanceof Date) {
-          recordDateStr = Utilities.formatDate(recordDate, ss.getSpreadsheetTimeZone(), "M/d/yyyy");
-        } else if (typeof recordDate === 'string') {
-          const parsedDate = new Date(recordDate);
-          if (!isNaN(parsedDate.getTime())) {
-            recordDateStr = Utilities.formatDate(parsedDate, ss.getSpreadsheetTimeZone(), "M/d/yyyy");
+          let recordDateStr = '';
+          if (recordDate instanceof Date) {
+            recordDateStr = Utilities.formatDate(recordDate, ss.getSpreadsheetTimeZone(), "M/d/yyyy");
+          } else if (typeof recordDate === 'string') {
+            const parsedDate = new Date(recordDate);
+            if (!isNaN(parsedDate.getTime())) {
+              recordDateStr = Utilities.formatDate(parsedDate, ss.getSpreadsheetTimeZone(), "M/d/yyyy");
+            }
           }
-        }
 
-        return recordName === employeeName &&
-               recordDateStr === checkDateStr &&
-               (recordCheck === 'TRUE' || recordCheck === true || recordCheck === 'X');
-      });
+          return recordName === employeeName &&
+                 recordDateStr === checkDateStr &&
+                 (recordCheck === 'TRUE' || recordCheck === true || recordCheck === 'X');
+        });
+      }
 
       dailyReports.push(hasReport);
       if (hasReport) {
@@ -861,7 +931,7 @@ function sendEmailWithRetry(emailConfig, maxRetries = 3) {
         '', // body text rong, vi dung htmlBody
         {
           htmlBody: emailConfig.htmlBody,
-          name: "BAO CAO NGAY RAW" // Dat ten ngau vao day
+          name: "Báo Cáo Ngày" // Dat ten ngau vao day
         }
       );
       Logger.log(`✅ Email sent successfully on attempt ${i + 1}`);
@@ -984,4 +1054,248 @@ function testRawDataVersion() {
   Logger.log(`❌ Not Reported (${reports.notReported.length}):`, reports.notReported);
 
   Logger.log('✅ Raw data version test completed');
+}
+
+/**
+ * TEST EMAIL CONTENT cho ngày hôm qua (không gửi thật)
+ */
+function testEmailContentYesterday() {
+  Logger.log('🧪 TESTING EMAIL CONTENT FOR YESTERDAY');
+
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+
+  // Call the main function with debug mode already active
+  sendDailyReportSummaryRaw(yesterday);
+}
+
+/**
+ * SIMPLE DEBUG TEST - Kiểm tra data matching logic
+ */
+function debugDataMatching() {
+  Logger.log('🧪 DEBUGGING DATA MATCHING LOGIC');
+
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName('tick');
+
+  if (!sheet) {
+    Logger.log('❌ Sheet "tick" không tồn tại');
+    return;
+  }
+
+  // Load raw data
+  const CONFIG = { debugMode: true, sheetName: 'tick' };
+  const rawData = loadRawDataFromSheet(sheet, CONFIG);
+
+  Logger.log(`📊 Loaded ${rawData.length} records`);
+
+  if (rawData.length > 0) {
+    Logger.log(`📋 Sample record:`, rawData[0]);
+
+    // Test with today
+    const today = new Date();
+    const targetDateStr = Utilities.formatDate(today, ss.getSpreadsheetTimeZone(), "M/d/yyyy");
+    Logger.log(`🎯 Target date string: ${targetDateStr}`);
+
+    // Check last 10 records for date formats
+    Logger.log(`📅 Checking last 10 records for date formats:`);
+    const lastRecords = rawData.slice(-10);
+
+    lastRecords.forEach((record, index) => {
+      const recordDate = record['date'];
+      const recordCheck = record['check'];
+      const recordName = record['ten nhan vien'];
+
+      let recordDateStr = '';
+      if (recordDate instanceof Date) {
+        recordDateStr = Utilities.formatDate(recordDate, ss.getSpreadsheetTimeZone(), "M/d/yyyy");
+      } else {
+        recordDateStr = recordDate ? recordDate.toString() : 'NO_DATE';
+      }
+
+      Logger.log(`   ${index}: ${recordName || 'NO_NAME'} | ${recordDateStr} | ${recordCheck || 'NO_CHECK'}`);
+    });
+
+    // Test the actual function
+    const reports = getEmployeeReportsForDate(rawData, today, ss);
+    Logger.log(`🎭 FINAL RESULT: Reported: ${reports.reported.length}, Not reported: ${reports.notReported.length}`);
+  }
+
+  Logger.log('✅ Debug data matching completed');
+}
+
+/**
+ * QUICK FIX - Temporary function to debug thật sự
+ */
+function quickDebugRaw() {
+  Logger.log('🔧 QUICK DEBUG RAW');
+
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName('tick');
+
+  const range = sheet.getDataRange();
+  const values = range.getValues();
+
+  Logger.log(`📊 Sheet có ${values.length} rows, ${values[0]?.length || 0} columns`);
+  Logger.log(`📋 Headers:`, values[0]);
+
+  // Check 3 sample data rows
+  for (let i = 1; i <= Math.min(3, values.length - 1); i++) {
+    Logger.log(`📋 Row ${i}:`, values[i]);
+  }
+
+  // Check today's data specifically
+  const today = new Date();
+  const todayStr = Utilities.formatDate(today, ss.getSpreadsheetTimeZone(), "M/d/yyyy");
+  Logger.log(`🎯 Looking for today: ${todayStr}`);
+
+  // Find headers
+  const headers = values[0];
+  const nameCol = headers.indexOf('ten nhan vien');
+  const dateCol = headers.indexOf('date');
+  const checkCol = headers.indexOf('check');
+
+  Logger.log(`🔍 Column indexes: name=${nameCol}, date=${dateCol}, check=${checkCol}`);
+
+  // Find today's entries
+  let todayCount = 0;
+  for (let i = 1; i < values.length; i++) {
+    const row = values[i];
+    const rowDate = row[dateCol];
+    let rowDateStr = '';
+
+    if (rowDate instanceof Date) {
+      rowDateStr = Utilities.formatDate(rowDate, ss.getSpreadsheetTimeZone(), "M/d/yyyy");
+    }
+
+    if (rowDateStr === todayStr) {
+      todayCount++;
+      Logger.log(`📅 TODAY MATCH: ${row[nameCol]} | ${rowDateStr} | ${row[checkCol]}`);
+    }
+  }
+
+  Logger.log(`🎭 Found ${todayCount} entries for today`);
+}
+
+/**
+ * TEST EXCLUSION - Kiểm tra excluded employees có bị loại bỏ không
+ */
+function testExcludedEmployees() {
+  Logger.log('🧪 TESTING EXCLUDED EMPLOYEES FILTER');
+
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName('tick');
+
+  if (!sheet) {
+    Logger.log('❌ Sheet "tick" không tồn tại');
+    return;
+  }
+
+  const CONFIG = {
+    sheetName: 'tick',
+    excludedEmployees: ['004620'], // Test với Trần Thị Phương Phi
+    debugMode: true
+  };
+
+  // Load raw data with exclusion
+  const rawData = loadRawDataFromSheet(sheet, CONFIG);
+
+  // Check if excluded employee still exists
+  const excludedEmployee = rawData.find(record => record['ma nhan vien'] === '004620');
+
+  if (excludedEmployee) {
+    Logger.log('❌ FAIL - Employee 004620 vẫn còn trong data');
+  } else {
+    Logger.log('✅ SUCCESS - Employee 004620 đã bị loại bỏ khỏi data');
+  }
+
+  // Show unique employees
+  const uniqueEmployees = [...new Set(rawData.map(r => `${r['ma nhan vien']} - ${r['ten nhan vien']}`))];
+  Logger.log(`📊 Total unique employees (after exclusion): ${uniqueEmployees.length}`);
+  Logger.log(`📋 Employee list:`, uniqueEmployees.slice(0, 10)); // Show first 10
+}
+
+/**
+ * TEST SHEET STRUCTURE - Kiểm tra cấu trúc sheet 'tick'
+ */
+function testSheetStructure() {
+  Logger.log('🧪 TESTING SHEET STRUCTURE');
+
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName('tick');
+
+  if (!sheet) {
+    Logger.log('❌ Sheet "tick" không tồn tại');
+    return;
+  }
+
+  const range = sheet.getDataRange();
+  const values = range.getValues();
+
+  Logger.log(`📊 Sheet có ${values.length} dòng và ${values[0]?.length || 0} cột`);
+
+  if (values.length > 0) {
+    Logger.log(`📋 Headers (dòng 1):`, values[0]);
+
+    if (values.length > 1) {
+      Logger.log(`📋 Sample data (dòng 2):`, values[1]);
+      Logger.log(`📋 Sample data (dòng 3):`, values[2] || 'Không có dòng 3');
+      Logger.log(`📋 Sample data (dòng 4):`, values[3] || 'Không có dòng 4');
+      Logger.log(`📋 Sample data (dòng 5):`, values[4] || 'Không có dòng 5');
+    }
+
+    // Test column mapping
+    const headers = values[0];
+    Logger.log(`🔍 Tìm cột 'ten nhan vien':`, headers.indexOf('ten nhan vien'));
+    Logger.log(`🔍 Tìm cột 'date':`, headers.indexOf('date'));
+    Logger.log(`🔍 Tìm cột 'check':`, headers.indexOf('check'));
+
+    // Detailed analysis
+    Logger.log(`🔍 All headers:`, headers);
+
+    // Check recent date entries
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(today.getDate() - 1);
+
+    const todayStr = Utilities.formatDate(today, ss.getSpreadsheetTimeZone(), "M/d/yyyy");
+    const yesterdayStr = Utilities.formatDate(yesterday, ss.getSpreadsheetTimeZone(), "M/d/yyyy");
+
+    Logger.log(`🎯 Looking for today: ${todayStr}`);
+    Logger.log(`🎯 Looking for yesterday: ${yesterdayStr}`);
+
+    // Check date formats in recent entries
+    for (let i = Math.max(1, values.length - 20); i < Math.min(values.length, values.length); i++) {
+      const row = values[i];
+      const dateValue = row[headers.indexOf('date')];
+      const checkValue = row[headers.indexOf('check')];
+      const nameValue = row[headers.indexOf('ten nhan vien')];
+
+      if (dateValue) {
+        let dateStr = '';
+        if (dateValue instanceof Date) {
+          dateStr = Utilities.formatDate(dateValue, ss.getSpreadsheetTimeZone(), "M/d/yyyy");
+        } else {
+          dateStr = dateValue.toString();
+        }
+
+        Logger.log(`📅 Row ${i}: ${nameValue} | ${dateStr} | ${checkValue}`);
+      }
+    }
+  }
+
+  Logger.log('✅ Sheet structure test completed');
+}
+
+/**
+ * TEST FUNCTION - Test raw data version for a specific date with known data
+ */
+function testRawWithKnownDate() {
+  Logger.log('🧪 TESTING RAW DATA VERSION WITH KNOWN DATE');
+
+  // Test with a date we know has data: 2/8/2025 (from sample data)
+  const testDate = '2025-02-08'; // February 8, 2025 - has data in sample
+  Logger.log(`🎯 Testing with known date: ${testDate}`);
+
+  sendDailyReportSummaryRaw(testDate);
 }
