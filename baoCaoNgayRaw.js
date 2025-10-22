@@ -59,8 +59,15 @@ function sendDailyReportSummaryRaw(customDate = null) {
       employeeName: 'ten nhan vien',     // Column B
       date: 'date',                      // Column C
       dayOfWeek: 'thu',                  // Column D
-      check: 'check'                     // Column E
+      check: 'check',                    // Column E
+      leaveType: 'nghi phep or cong tac' // Column F
     },
+
+    // Full-day leave types that count as "reported"
+    fullDayLeaveTypes: [
+      'Nghỉ phép cả ngày',
+      'Công tác cả ngày'
+    ],
 
     // ICON mặc định (đen/xám)
     starIconDefault: 'https://cdn-icons-png.flaticon.com/128/2956/2956792.png',
@@ -114,7 +121,7 @@ function sendDailyReportSummaryRaw(customDate = null) {
     const dateIndex = buildDateIndexRaw(rawData, ss);
 
     // Get employees who reported on target date
-    const targetReports = getEmployeeReportsForDate(rawData, targetDate, ss);
+    const targetReports = getEmployeeReportsForDate(rawData, targetDate, ss, CONFIG);
     const reported = targetReports.reported;
     const notReported = targetReports.notReported;
 
@@ -175,9 +182,11 @@ function sendDailyReportSummaryRaw(customDate = null) {
     if (!isWeekend) {
       // Danh sách đã báo cáo với star calculation chính xác
       if (reported.length > 0) {
-        const reportedWithStars = reported.map(name => ({
-          name,
-          stars: getWeeklyStarsRaw(rawData, name, CONFIG, targetDate, ss, dateIndex)
+        const reportedWithStars = reported.map(person => ({
+          name: person.name,
+          leaveType: person.leaveType,
+          hasCheck: person.hasCheck,
+          stars: getWeeklyStarsRaw(rawData, person.name, CONFIG, targetDate, ss, dateIndex)
         }));
         reportedWithStars.sort((a, b) => b.stars - a.stars);
 
@@ -187,11 +196,21 @@ function sendDailyReportSummaryRaw(customDate = null) {
             ? `<span style="color: ${starColor}; font-size: 16px;">★</span>`.repeat(person.stars)
             : '';
 
+          // Add suffix for leave type - CHỈ KHI KHÔNG CÓ TICK
+          let displayName = person.name;
+          if (person.leaveType && !person.hasCheck) {
+            if (person.leaveType === 'Nghỉ phép cả ngày') {
+              displayName = `${person.name} (p)`;
+            } else if (person.leaveType === 'Công tác cả ngày') {
+              displayName = `${person.name} (ct)`;
+            }
+          }
+
           return `
             <table width="100%" cellpadding="0" cellspacing="0" border="0" style="padding: 16px 0;">
               <tr>
                 <td style="font-size: 15px; font-weight: 400; color: ${colors.namesList}; vertical-align: middle;">
-                  ${person.name}
+                  ${displayName}
                 </td>
                 <td style="text-align: right; vertical-align: middle;">
                   ${person.stars > 0 ? `<span style="white-space: nowrap;">${starsDisplay}</span>` : ''}
@@ -440,44 +459,66 @@ function loadRawDataFromSheet(sheet, CONFIG) {
 
 /**
  * Get employee reports for specific date from raw data
+ * Logic: Đã báo cáo nếu:
+ * 1. Có tick (check = true)
+ * 2. HOẶC nghỉ phép/công tác CẢ NGÀY (không cần tick)
+ *
+ * Return: {
+ *   reported: [{name: 'Tên', leaveType: 'Nghỉ phép cả ngày' | null, hasCheck: true/false}],
+ *   notReported: ['Tên1', 'Tên2']
+ * }
  */
-function getEmployeeReportsForDate(rawData, targetDate, ss) {
+function getEmployeeReportsForDate(rawData, targetDate, ss, CONFIG) {
   try {
     const targetDateStr = Utilities.formatDate(targetDate, ss.getSpreadsheetTimeZone(), "M/d/yyyy");
 
     // Get all unique employees
     const allEmployees = [...new Set(rawData.map(record => record['ten nhan vien']))].filter(Boolean);
 
-    // Find who reported on target date - OPTIMIZED VERSION
-    const reportedEmployees = rawData
-      .filter(record => {
-        const recordDate = record['date'];
-        const recordCheck = record['check'];
-        const recordName = record['ten nhan vien'];
+    // Build a map of employee -> {leaveType, hasCheck} for this date
+    const employeeDataMap = {};
 
-        if (!recordName) return false;
+    rawData.forEach(record => {
+      const recordDate = record['date'];
+      const recordCheck = record['check'];
+      const recordLeaveType = record['nghi phep or cong tac'];
+      const recordName = record['ten nhan vien'];
 
-        let recordDateStr = '';
-        if (recordDate instanceof Date) {
-          recordDateStr = Utilities.formatDate(recordDate, ss.getSpreadsheetTimeZone(), "M/d/yyyy");
-        } else if (typeof recordDate === 'string') {
-          // Try to parse string date
-          const parsedDate = new Date(recordDate);
-          if (!isNaN(parsedDate.getTime())) {
-            recordDateStr = Utilities.formatDate(parsedDate, ss.getSpreadsheetTimeZone(), "M/d/yyyy");
-          }
+      if (!recordName) return;
+
+      let recordDateStr = '';
+      if (recordDate instanceof Date) {
+        recordDateStr = Utilities.formatDate(recordDate, ss.getSpreadsheetTimeZone(), "M/d/yyyy");
+      } else if (typeof recordDate === 'string') {
+        const parsedDate = new Date(recordDate);
+        if (!isNaN(parsedDate.getTime())) {
+          recordDateStr = Utilities.formatDate(parsedDate, ss.getSpreadsheetTimeZone(), "M/d/yyyy");
         }
+      }
 
-        const dateMatches = recordDateStr === targetDateStr;
-        const hasReport = (recordCheck === 'TRUE' || recordCheck === true || recordCheck === 'X' || recordCheck === 1);
+      if (recordDateStr !== targetDateStr) return;
 
-        return dateMatches && hasReport;
-      })
-      .map(record => record['ten nhan vien'])
-      .filter(Boolean);
+      const hasCheck = (recordCheck === 'TRUE' || recordCheck === true || recordCheck === 'X' || recordCheck === 1);
+      const isFullDayLeave = CONFIG.fullDayLeaveTypes && CONFIG.fullDayLeaveTypes.includes(recordLeaveType);
 
-    const reported = [...new Set(reportedEmployees)];
-    const notReported = allEmployees.filter(name => !reported.includes(name));
+      // If has report (check or full-day leave), add to map
+      if (hasCheck || isFullDayLeave) {
+        employeeDataMap[recordName] = {
+          leaveType: isFullDayLeave ? recordLeaveType : null,
+          hasCheck: hasCheck
+        };
+      }
+    });
+
+    // Build reported array with leave type and check info
+    const reported = Object.keys(employeeDataMap).map(name => ({
+      name: name,
+      leaveType: employeeDataMap[name].leaveType,
+      hasCheck: employeeDataMap[name].hasCheck
+    }));
+
+    const reportedNames = reported.map(r => r.name);
+    const notReported = allEmployees.filter(name => !reportedNames.includes(name));
 
     return { reported, notReported };
   } catch (error) {
@@ -531,10 +572,18 @@ function getWeeklyStarsRaw(rawData, employeeName, CONFIG, currentDate, ss, dateI
 
       // Use index for fast lookup
       const dateRecords = dateIndex[checkDateStr] || [];
-      const hasReport = dateRecords.some(record =>
-        record['ten nhan vien'] === employeeName &&
-        (record['check'] === 'TRUE' || record['check'] === true || record['check'] === 'X')
-      );
+      const hasReport = dateRecords.some(record => {
+        if (record['ten nhan vien'] !== employeeName) return false;
+
+        const hasCheck = (record['check'] === 'TRUE' || record['check'] === true || record['check'] === 'X');
+
+        // Check if full-day leave (nghỉ cả ngày or công tác cả ngày)
+        const leaveType = record['nghi phep or cong tac'];
+        const isFullDayLeave = CONFIG.fullDayLeaveTypes && CONFIG.fullDayLeaveTypes.includes(leaveType);
+
+        // Count as star if: has check OR full-day leave
+        return hasCheck || isFullDayLeave;
+      });
 
       if (hasReport) {
         stars++;
@@ -671,16 +720,27 @@ function getEmployeeWeeklyPerformanceRaw(rawData, employeeName, CONFIG, monday, 
       let hasReport = false;
       if (dateIndex) {
         const dateRecords = dateIndex[checkDateStr] || [];
-        hasReport = dateRecords.some(record =>
-          record['ten nhan vien'] === employeeName &&
-          (record['check'] === 'TRUE' || record['check'] === true || record['check'] === 'X')
-        );
+        hasReport = dateRecords.some(record => {
+          if (record['ten nhan vien'] !== employeeName) return false;
+
+          const hasCheck = (record['check'] === 'TRUE' || record['check'] === true || record['check'] === 'X');
+
+          // Check if full-day leave (nghỉ cả ngày or công tác cả ngày)
+          const leaveType = record['nghi phep or cong tac'];
+          const isFullDayLeave = CONFIG.fullDayLeaveTypes && CONFIG.fullDayLeaveTypes.includes(leaveType);
+
+          // Count as report if: has check OR full-day leave
+          return hasCheck || isFullDayLeave;
+        });
       } else {
         // Fallback to original method
         hasReport = rawData.some(record => {
           const recordName = record['ten nhan vien'];
           const recordDate = record['date'];
           const recordCheck = record['check'];
+          const recordLeaveType = record['nghi phep or cong tac'];
+
+          if (recordName !== employeeName) return false;
 
           let recordDateStr = '';
           if (recordDate instanceof Date) {
@@ -692,9 +752,12 @@ function getEmployeeWeeklyPerformanceRaw(rawData, employeeName, CONFIG, monday, 
             }
           }
 
-          return recordName === employeeName &&
-                 recordDateStr === checkDateStr &&
-                 (recordCheck === 'TRUE' || recordCheck === true || recordCheck === 'X');
+          if (recordDateStr !== checkDateStr) return false;
+
+          const hasCheck = (recordCheck === 'TRUE' || recordCheck === true || recordCheck === 'X');
+          const isFullDayLeave = CONFIG.fullDayLeaveTypes && CONFIG.fullDayLeaveTypes.includes(recordLeaveType);
+
+          return hasCheck || isFullDayLeave;
         });
       }
 
@@ -1026,6 +1089,45 @@ function sendReportForLastSundayRaw() {
 }
 
 /**
+ * TEST FUNCTION - Test bao cao Chu nhat toi (GUI EMAIL THAT)
+ * LUU Y: Ham nay se GUI EMAIL THAT, khong phai test mode
+ */
+function testNextSundayReport() {
+  Logger.log('🧪 TESTING NEXT SUNDAY REPORT - GUI EMAIL THAT');
+
+  const today = new Date();
+  const nextSunday = new Date(today);
+
+  // Tinh ngay Chu nhat toi
+  const daysUntilSunday = today.getDay() === 0 ? 7 : (7 - today.getDay());
+  nextSunday.setDate(today.getDate() + daysUntilSunday);
+
+  const nextSundayStr = Utilities.formatDate(
+    nextSunday,
+    SpreadsheetApp.getActiveSpreadsheet().getSpreadsheetTimeZone(),
+    "dd/MM/yyyy (EEEE)"
+  );
+
+  Logger.log(`📅 Chu nhat toi: ${nextSundayStr}`);
+  Logger.log(`⚠️ WARNING: Se GUI EMAIL THAT den ${getEmailRecipients()}`);
+
+  // GUI EMAIL THAT - KHONG CO DEBUG MODE
+  sendDailyReportSummaryRaw(nextSunday);
+
+  Logger.log('✅ Email da duoc gui thanh cong!');
+}
+
+/**
+ * Helper function lay danh sach email tu CONFIG
+ */
+function getEmailRecipients() {
+  const CONFIG = {
+    emailTo: 'quoc.nguyen3@hoanmy.com'
+  };
+  return CONFIG.emailTo;
+}
+
+/**
  * TEST FUNCTION - Test raw data version
  */
 function testRawDataVersion() {
@@ -1040,17 +1142,23 @@ function testRawDataVersion() {
     return;
   }
 
-  const CONFIG = { debugMode: true };
+  const CONFIG = {
+    debugMode: true,
+    fullDayLeaveTypes: [
+      'Nghỉ phép cả ngày',
+      'Công tác cả ngày'
+    ]
+  };
   const rawData = loadRawDataFromSheet(sheet, CONFIG);
 
   Logger.log(`📊 Raw data sample:`, rawData.slice(0, 3));
 
   // Test date querying
   const testDate = new Date('2025-01-01');
-  const reports = getEmployeeReportsForDate(rawData, testDate, ss);
+  const reports = getEmployeeReportsForDate(rawData, testDate, ss, CONFIG);
 
   Logger.log(`📅 Reports for ${testDate.toDateString()}:`);
-  Logger.log(`✅ Reported (${reports.reported.length}):`, reports.reported);
+  Logger.log(`✅ Reported (${reports.reported.length}):`, reports.reported.map(r => `${r.name}${r.leaveType ? ' (' + r.leaveType + ')' : ''}`));
   Logger.log(`❌ Not Reported (${reports.notReported.length}):`, reports.notReported);
 
   Logger.log('✅ Raw data version test completed');
@@ -1084,7 +1192,14 @@ function debugDataMatching() {
   }
 
   // Load raw data
-  const CONFIG = { debugMode: true, sheetName: 'tick' };
+  const CONFIG = {
+    debugMode: true,
+    sheetName: 'tick',
+    fullDayLeaveTypes: [
+      'Nghỉ phép cả ngày',
+      'Công tác cả ngày'
+    ]
+  };
   const rawData = loadRawDataFromSheet(sheet, CONFIG);
 
   Logger.log(`📊 Loaded ${rawData.length} records`);
@@ -1117,8 +1232,9 @@ function debugDataMatching() {
     });
 
     // Test the actual function
-    const reports = getEmployeeReportsForDate(rawData, today, ss);
+    const reports = getEmployeeReportsForDate(rawData, today, ss, CONFIG);
     Logger.log(`🎭 FINAL RESULT: Reported: ${reports.reported.length}, Not reported: ${reports.notReported.length}`);
+    Logger.log(`🎭 Reported details:`, reports.reported.map(r => `${r.name}${r.leaveType ? ' (' + r.leaveType + ')' : ''}`));
   }
 
   Logger.log('✅ Debug data matching completed');
