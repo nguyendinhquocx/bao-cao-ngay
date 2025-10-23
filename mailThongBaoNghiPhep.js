@@ -47,11 +47,13 @@ function sendLeaveNotification() {
       '1n6iq0G2aC6rzIJ7Ir7P6Z4LmBqXiA6jKhfh7R5axxKE',
       '1mij4KC6yZ8joioMpcj1-rGXkhL6gBYByHryjRh0edy4',
       '19kqn8JcKp3TzdrwoUEiJUmyUInmk2Jv9fhMY-D01ktc',
-      '1ZZ47Rf5aAV5ixHpAWrbGzBfhFXSjTQQTsRXiwWe3ydI'
+      '1ZZ47Rf5aAV5ixHpAWrbGzBfhFXSjTQQTsRXiwWe3ydI',
+      '1D1bPi44OL8skQJW0mqhqTcfCAWM4ZvXOUqa-OW-2viw'
     ],
 
     sheetName: 'tick',
-    emailTo: ['quoc.nguyen3@hoanmy.com', 'luan.tran@hoanmy.com'],
+    emailTo: ['quoc.nguyen3@hoanmy.com'],
+    // emailTo: ['quoc.nguyen3@hoanmy.com', 'luan.tran@hoanmy.com'],
 
     // Leave types (CO DAU - phai khop voi dropdown trong sheet)
     leaveTypes: {
@@ -74,14 +76,21 @@ function sendLeaveNotification() {
     const unsentLeave = getUnsentLeaveRegistrations(allLeaveData, CONFIG);
 
     if (CONFIG.debugMode) {
-      Logger.log(`Unsent leave count: ${unsentLeave.nghiPhep.length + unsentLeave.congTac.length}`);
+      Logger.log(`Future leave count: ${unsentLeave.nghiPhep.length + unsentLeave.congTac.length}`);
+      Logger.log(`Past leave count: ${unsentLeave.pastLeave.length}`);
     }
 
-    // Step 3: Send email if there are unsent registrations
+    // Step 3: Auto-mark past leave (tu dong danh 'x' cho ngay qua khu, khong gui email)
+    if (unsentLeave.pastLeave.length > 0) {
+      markAsSent({ nghiPhep: unsentLeave.pastLeave, congTac: [] }, CONFIG);
+      Logger.log(`Da tu dong danh dau ${unsentLeave.pastLeave.length} ngay qua khu`);
+    }
+
+    // Step 4: Send email for future/today leave
     if (unsentLeave.nghiPhep.length > 0 || unsentLeave.congTac.length > 0) {
       sendLeaveEmail(unsentLeave, CONFIG);
 
-      // Step 4: Mark as sent (column H = 'x')
+      // Step 5: Mark as sent (column H = 'x')
       markAsSent(unsentLeave, CONFIG);
 
       Logger.log(`Email thong bao nghi phep da duoc gui`);
@@ -157,17 +166,29 @@ function loadAllLeaveData(CONFIG) {
 
 /**
  * Get unsent leave registrations (column F has value, column H = empty)
+ * Return:
+ * - nghiPhep/congTac: ngay hom nay va sau -> gui email
+ * - pastLeave: ngay truoc hom nay -> tu dong danh 'x', khong gui email
  */
 function getUnsentLeaveRegistrations(leaveData, CONFIG) {
-  const nghiPhep = [];
-  const congTac = [];
+  const futureNghiPhep = [];
+  const futureCongTac = [];
+  const pastLeave = [];
+
+  // Get today at 00:00:00 for date comparison
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
 
   leaveData.forEach(record => {
     const hasLeaveType = record.leaveType && record.leaveType.trim() !== '';
     const isMailSent = record.mailSent === 'x' || record.mailSent === 'X';
 
-    // Only include records with leaveType BUT mailSent = empty
+    // Only process records with leaveType AND mailSent = empty
     if (hasLeaveType && !isMailSent) {
+      // Parse record date
+      const recordDate = record.date instanceof Date ? new Date(record.date) : new Date(record.date);
+      recordDate.setHours(0, 0, 0, 0);
+
       const leaveInfo = {
         spreadsheetId: record.spreadsheetId,
         sheetName: record.sheetName,
@@ -179,10 +200,16 @@ function getUnsentLeaveRegistrations(leaveData, CONFIG) {
         note: record.note || 'Khong co ghi chu'
       };
 
-      if (CONFIG.leaveTypes.nghiPhep.includes(record.leaveType)) {
-        nghiPhep.push(leaveInfo);
-      } else if (CONFIG.leaveTypes.congTac.includes(record.leaveType)) {
-        congTac.push(leaveInfo);
+      if (recordDate >= today) {
+        // Future/today: gui email
+        if (CONFIG.leaveTypes.nghiPhep.includes(record.leaveType)) {
+          futureNghiPhep.push(leaveInfo);
+        } else if (CONFIG.leaveTypes.congTac.includes(record.leaveType)) {
+          futureCongTac.push(leaveInfo);
+        }
+      } else {
+        // Past: tu dong danh 'x', khong gui email
+        pastLeave.push(leaveInfo);
       }
     }
   });
@@ -194,10 +221,15 @@ function getUnsentLeaveRegistrations(leaveData, CONFIG) {
     return dateA - dateB;
   };
 
-  nghiPhep.sort(sortByDate);
-  congTac.sort(sortByDate);
+  futureNghiPhep.sort(sortByDate);
+  futureCongTac.sort(sortByDate);
+  pastLeave.sort(sortByDate);
 
-  return { nghiPhep, congTac };
+  return {
+    nghiPhep: futureNghiPhep,
+    congTac: futureCongTac,
+    pastLeave: pastLeave
+  };
 }
 
 /**
